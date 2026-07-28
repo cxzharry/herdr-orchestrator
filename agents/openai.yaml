@@ -1,0 +1,4 @@
+interface:
+  display_name: "Herdr Orchestrator"
+  short_description: "Run compact eight-pane Herdr delivery loops"
+  default_prompt: "Use $herdr-orchestrator to coordinate this task through Herdr with bounded workers and sequential review."

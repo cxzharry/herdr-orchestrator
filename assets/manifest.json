@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "source": "delivery-flow.excalidraw",
+  "render_source": "delivery-flow.svg",
+  "derived": [
+    "delivery-flow.png"
+  ],
+  "derived_from_render_source_sha256": {
+    "delivery-flow.png": "8ab9b4b5d007f24f5f5ab08ad2443c02bcd7bf2f2daa7bb8901c668a4a89f395"
+  },
+  "renderer": {
+    "chrome": "Google Chrome 150.0.7871.186",
+    "pillow": "10.2.0",
+    "source_size": [3560, 1320],
+    "output_size": [3000, 1113]
+  },
+  "sha256": {
+    "delivery-flow.excalidraw": "16e572aab97afa42e0443dc71c98f80561e76b6375275769b007067ca2cc326b",
+    "delivery-flow.png": "1dd9dd7821a1d491e2ae7cf28ffd21041e6db148a29dfcdd2d4c44c85bce1906",
+    "delivery-flow.svg": "8ab9b4b5d007f24f5f5ab08ad2443c02bcd7bf2f2daa7bb8901c668a4a89f395"
+  }
+}
