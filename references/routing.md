@@ -113,6 +113,17 @@ Do not call `herdr agent wait` after dispatch when a receipt path exists. Do not
 poll workers sequentially, reread settled chat, or hold `agent prompt --wait`
 after terminal receipts exist.
 
+`await_receipts.py` also tracks live session identity for every requested lane.
+If the same session_id appears under a new pane_id after a pane move, it
+atomically rebinds the lane location and continues the same generation. A
+terminal receipt already on disk wins even if the agent was then closed.
+
+If a requested session is absent for three live checks, the waiter returns
+`status=lost and exit code 2`. Do not wait for the receipt timeout. P1 preserves
+the shared-worktree diff and evidence, marks only that generation SUPERSEDED,
+increments the lane, starts a replacement with the locked input identity, and
+continues unrelated lanes. Reject any late receipt from the lost session.
+
 Do not inspect prior benchmark answers, unrelated run directories, superseded
 receipts, or old conversations for response shape. Only current-contract
 approved inputs and accepted receipts may influence routing.
