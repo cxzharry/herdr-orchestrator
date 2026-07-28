@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Verify the immutable graph bundle and eight-pane Excalidraw invariants."""
+"""Verify the immutable graph bundle and nine-pane Excalidraw invariants."""
 
 import argparse
 import hashlib
 import json
-import re
 import struct
 import subprocess
 import sys
@@ -30,6 +29,7 @@ PANE_IDS = (
     "worker_2",
     "worker_3",
     "worker_4",
+    "integration_reviewer",
     "qc",
     "designer",
     "persona",
@@ -44,8 +44,12 @@ FLOW_NODE_IDS = {
     "fork",
     *PANE_IDS[1:],
     "integrated",
-    "qc_gate",
-    "ux_gate",
+    "smoke",
+    "artifact_gate",
+    "deploy",
+    "review_fork",
+    "review_gate",
+    "promotion",
     "verified",
     "end",
 }
@@ -66,15 +70,23 @@ EXPECTED_EDGES = {
     ("worker_2", "integrated"),
     ("worker_3", "integrated"),
     ("worker_4", "integrated"),
-    ("integrated", "qc"),
-    ("qc", "qc_gate"),
-    ("qc_gate", "designer"),
-    ("qc_gate", "orchestrator"),
-    ("designer", "persona"),
-    ("persona", "ux_gate"),
-    ("ux_gate", "verified"),
+    ("integrated", "smoke"),
+    ("integrated", "integration_reviewer"),
+    ("smoke", "artifact_gate"),
+    ("integration_reviewer", "artifact_gate"),
+    ("artifact_gate", "deploy"),
+    ("artifact_gate", "orchestrator"),
+    ("deploy", "review_fork"),
+    ("review_fork", "qc"),
+    ("review_fork", "designer"),
+    ("review_fork", "persona"),
+    ("qc", "review_gate"),
+    ("designer", "review_gate"),
+    ("persona", "review_gate"),
+    ("review_gate", "promotion"),
+    ("review_gate", "orchestrator"),
+    ("promotion", "verified"),
     ("verified", "end"),
-    ("ux_gate", "orchestrator"),
 }
 ARROW_IDS = {
     "task_o",
@@ -93,15 +105,23 @@ ARROW_IDS = {
     "w2_integrated",
     "w3_integrated",
     "w4_integrated",
-    "integrated_qc",
-    "qc_gate_edge",
-    "qc_yes",
-    "qc_no",
-    "designer_persona",
-    "persona_ux",
-    "ux_yes",
+    "integrated_smoke",
+    "integrated_reviewer",
+    "smoke_artifact",
+    "reviewer_artifact",
+    "artifact_yes",
+    "artifact_no",
+    "deploy_review_fork",
+    "review_fork_qc",
+    "review_fork_designer",
+    "review_fork_persona",
+    "qc_review_gate",
+    "designer_review_gate",
+    "persona_review_gate",
+    "review_yes",
+    "review_no",
+    "promotion_verified",
     "verified_end",
-    "ux_no",
 }
 EXPECTED_NODE_TYPES = {
     "task": "ellipse",
@@ -116,50 +136,64 @@ EXPECTED_NODE_TYPES = {
     "worker_3": "rectangle",
     "worker_4": "rectangle",
     "integrated": "rectangle",
+    "smoke": "rectangle",
+    "integration_reviewer": "rectangle",
+    "artifact_gate": "diamond",
+    "deploy": "rectangle",
+    "review_fork": "ellipse",
     "qc": "rectangle",
-    "qc_gate": "diamond",
     "designer": "rectangle",
     "persona": "rectangle",
-    "ux_gate": "diamond",
+    "review_gate": "diamond",
+    "promotion": "rectangle",
     "verified": "rectangle",
     "end": "ellipse",
 }
 EXPECTED_TEXTS = {
     "task_text": "USER\nTASK",
-    "orchestrator_text": "P1  ORCHESTRATOR\n\nplan · route · state\nnever self-approve",
-    "ready_text": "Ready?\nClear + testable?",
-    "contract_text": "EXECUTION CONTRACT\n\nsource · ownership\ndependencies · checks\nDone criteria",
+    "orchestrator_text": "P1  ORCHESTRATOR\n\nbrainstorm · plan · route\nnever self-approve",
+    "ready_text": "Ready?\nSpec approved?",
+    "contract_text": "EXECUTION CONTRACT\n\nscope · ownership · skills\nchecks · deploy policy",
     "isolation_text": "Need\nisolation?",
     "worktree_text": "WORKTREE / LANE\nbranch · port · state",
     "fork_text": "",
     "worker_1_text": "P2  WORKER 1\nLane A",
     "worker_2_text": "P3  WORKER 2\nLane B",
     "worker_3_text": "P4  WORKER 3\nLane C",
-    "worker_4_text": "P5  WORKER 4\nLane D / E2E + SMOKE",
-    "worker_4_badge_text": "INTEGRATION OWNER",
-    "integrated_text": "INTEGRATED BUILD\n\none mutator · merge\nfull checks · local seed",
-    "qc_text": "P6  QC\n\nregression · contract\nPlaywright · evidence",
-    "qc_badge_text": "INTEGRATION REVIEWER",
-    "qc_gate_text": "Regression\npass?",
-    "designer_text": "P7  DESIGNER\n\nUI · UX · responsive\nvisual feedback",
-    "persona_text": "P8  PERSONA\n\nreal journey · friction\nexperience feedback",
-    "ux_gate_text": "Experience\npass?",
-    "verified_text": "VERIFIED DELIVERY\n\nevidence complete",
+    "worker_4_text": "P5  WORKER 4\nLane D",
+    "integrated_text": "INTEGRATE + PUBLISH\n\naccepted SHAs · artifact\nseed · evidence",
+    "integration_badge_text": "P5  INTEGRATION OWNER",
+    "smoke_text": "P5  SMOKE\ncritical journeys",
+    "integration_reviewer_text": "P6  INTEGRATION REVIEWER\nGit · artifact · requirements",
+    "artifact_gate_text": "Artifact\nverified?",
+    "deploy_text": "P5  DEPLOY\nDEV / SOLE ENV\nor local review",
+    "review_fork_text": "",
+    "qc_text": "P7  QC\nregression · RBAC",
+    "designer_text": "P8  DESIGNER\nUI · UX · accessibility",
+    "persona_text": "P9  PERSONA\njourneys · friction",
+    "review_gate_text": "Blocking gates\npass?",
+    "promotion_text": "P1  PROMOTE / DELIVER\nmain or sole environment",
+    "verified_text": "VERIFIED DELIVERY\nartifact + evidence",
     "end_text": "END",
     "ready_yes_label": "yes",
     "ready_no_label": "no · clarify",
     "isolation_no_label": "no · shared tree + ownership",
     "isolation_yes_label": "yes · overlap / risky",
-    "qc_yes_label": "yes",
-    "qc_no_label": "no · route to owning worker",
-    "ux_yes_label": "yes",
-    "ux_no_label": "no · UX/persona findings → owning worker",
-    "title": "8-PANE MULTI-AGENT DELIVERY LOOP",
-    "subtitle": "P1 Orchestrator · P2–P5 Workers · P6 QC · P7 Designer · P8 Persona",
+    "artifact_yes_label": "yes · deploy",
+    "artifact_no_label": "no · route finding to owner",
+    "review_yes_label": "yes",
+    "review_no_label": "no · block or rollback",
+    "title": "9-PANE EVENT-DRIVEN DELIVERY LOOP",
+    "subtitle": "P1 Orchestrator · P2–P5 Workers · P6 Integration Review · P7 QC · P8 Designer · P9 Persona",
     "legend": "GREEN = ORCHESTRATOR   WHITE = OTHER AGENT   VIOLET BADGE = SECOND ROLE, SAME PANE",
     "phase_1": "1  PLAN + CONTRACT",
-    "phase_2": "2  PARALLEL WORK",
-    "phase_3": "3  ONE PLAYWRIGHT SLOT: P5 SMOKE → QC → DESIGNER → PERSONA",
+    "phase_2": "2  READY WORK WAVES",
+    "phase_3": "3  VERIFY + DEPLOY",
+    "phase_4": "4  PARALLEL REVIEW",
+    "parallel_integration": "P5 SMOKE + P6 REVIEW IN PARALLEL",
+    "parallel_review": "P7 QC · P8 DESIGNER · P9 PERSONA IN PARALLEL",
+    "sidecar_note": "P7–P9 PREPARE EARLY · REPORT TO P1 WHEN DONE",
+    "deploy_policy": "P6 PASS: DEV OR SOLE ENV · MAIN WAITS FOR BLOCKING GATES",
 }
 AGENT_TEXT_IDS = {
     "orchestrator_text",
@@ -167,6 +201,7 @@ AGENT_TEXT_IDS = {
     "worker_2_text",
     "worker_3_text",
     "worker_4_text",
+    "integration_reviewer_text",
     "qc_text",
     "designer_text",
     "persona_text",
@@ -175,9 +210,30 @@ EXPECTED_ELEMENT_TYPES = {
     **EXPECTED_NODE_TYPES,
     **{text_id: "text" for text_id in EXPECTED_TEXTS},
     **{arrow_id: "arrow" for arrow_id in ARROW_IDS},
-    "worker_4_badge": "rectangle",
-    "qc_badge": "rectangle",
+    "integration_badge": "rectangle",
 }
+
+ORCHESTRATOR_STYLE = ("#51cf66", "#173d24")
+AGENT_STYLE = ("#f1f3f5", "#111318")
+DECISION_STYLE = ("#ffa94d", "#3d2a16")
+EVIDENCE_STYLE = ("#74c0fc", "#18324a")
+BADGE_STYLE = ("#c084fc", "#322044")
+ORCHESTRATOR_NODES = {"orchestrator", "promotion"}
+AGENT_NODES = {
+    "worker_1",
+    "worker_2",
+    "worker_3",
+    "worker_4",
+    "integrated",
+    "smoke",
+    "integration_reviewer",
+    "deploy",
+    "qc",
+    "designer",
+    "persona",
+}
+DECISION_NODES = {"ready", "isolation", "artifact_gate", "review_gate"}
+EVIDENCE_NODES = {"contract", "worktree", "verified"}
 
 
 def digest(path: Path) -> str:
@@ -301,26 +357,41 @@ def verify(manifest_path: Path) -> dict:
         ]
         if wrong_text:
             failures.append(f"wrong canonical text: {', '.join(wrong_text)}")
-        detected_agent_text_ids = {
-            item.get("id")
-            for item in elements
-            if item.get("type") == "text"
-            and item.get("id") != "subtitle"
-            and re.search(
-                r"\bP\d+\s+(?:ORCHESTRATOR|WORKER|QC|DESIGNER|PERSONA)\b",
-                item.get("text", ""),
+        missing_agent_labels = AGENT_TEXT_IDS - set(by_id)
+        if missing_agent_labels:
+            failures.append(
+                "graph must contain the canonical nine pane labels: "
+                + ", ".join(sorted(missing_agent_labels))
             )
-        }
-        if detected_agent_text_ids != AGENT_TEXT_IDS:
-            failures.append("graph must contain exactly the canonical eight agent labels")
 
-        badges = {
-            text for text in texts if text in {"INTEGRATION OWNER", "INTEGRATION REVIEWER"}
+        badges = {text for text in texts if "INTEGRATION OWNER" in text}
+        if badges != {"P5  INTEGRATION OWNER"}:
+            failures.append("the only dual-role badge must mark P5 Integration Owner")
+
+        style_groups = {
+            "orchestrator": (ORCHESTRATOR_NODES, ORCHESTRATOR_STYLE),
+            "agent": (AGENT_NODES, AGENT_STYLE),
+            "decision": (DECISION_NODES, DECISION_STYLE),
+            "evidence": (EVIDENCE_NODES, EVIDENCE_STYLE),
+            "badge": ({"integration_badge"}, BADGE_STYLE),
         }
-        if badges != {"INTEGRATION OWNER", "INTEGRATION REVIEWER"}:
-            failures.append("dual-role badges must be Integration Owner and Integration Reviewer")
-        if len(arrows) != 25:
-            failures.append(f"expected 25 arrows, found {len(arrows)}")
+        for label, (node_ids, expected_style) in style_groups.items():
+            wrong_style = [
+                node_id
+                for node_id in sorted(node_ids)
+                if (
+                    by_id.get(node_id, {}).get("strokeColor"),
+                    by_id.get(node_id, {}).get("backgroundColor"),
+                )
+                != expected_style
+            ]
+            if wrong_style:
+                failures.append(
+                    f"wrong {label} color role: {', '.join(wrong_style)}"
+                )
+
+        if len(arrows) != 33:
+            failures.append(f"expected 33 arrows, found {len(arrows)}")
         if any(not arrow.get("startBinding") or not arrow.get("endBinding") for arrow in arrows):
             failures.append("every arrow must bind both endpoints")
         bindings = [
