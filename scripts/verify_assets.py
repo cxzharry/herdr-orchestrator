@@ -20,8 +20,8 @@ REQUIRED_FILES = {
     "delivery-flow.svg",
 }
 CANONICAL_SOURCE_HASHES = {
-    "delivery-flow.excalidraw": "16e572aab97afa42e0443dc71c98f80561e76b6375275769b007067ca2cc326b",
-    "delivery-flow.svg": "8ab9b4b5d007f24f5f5ab08ad2443c02bcd7bf2f2daa7bb8901c668a4a89f395",
+    "delivery-flow.excalidraw": "232733b1cc5f0e0c561cdc498b938d3d58cb2841a7b25089e71cc3fcd85cad96",
+    "delivery-flow.svg": "598546f4d05aba7e77db90930d5dba71febebcdf231f5c134a9cc7985ca4c78d",
 }
 PANE_IDS = (
     "orchestrator",
