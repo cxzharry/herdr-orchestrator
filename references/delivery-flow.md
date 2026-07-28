@@ -10,10 +10,20 @@ canonical render source; PNG is its deterministic visual preview.
 
 Call `view_image` on the PNG before planning. Use SVG only as a fallback.
 
-The graph shows the maximum nine-pane topology, not unconditional concurrency:
+The graph shows the maximum standard-gate topology, not unconditional
+concurrency. An approved compact local task may stop after ready workers plus
+P1's independent deterministic verification; it does not start P5-P9.
+P2-P4 may already exist as idle reusable agents. Leasing them changes runtime
+state, not this role topology; each active lease is still bound to one current
+contract, generation, pane, session, root, and owned scope.
 
-- P2-P5 start only in dependency-ready waves.
-- P5 restarts as Integration Owner before publishing.
+For the standard gate:
+
+- P2-P4 and a definitely-applicable fresh P5 start at the same fan-out boundary.
+- P5 may prepare only integration-owned RED tests, fixtures, and scaffold while
+  worker receipts are pending; accepting or publishing worker bytes still waits
+  for validator-clean current receipts.
+- An existing P5 Worker 4 restarts as Integration Owner before publishing.
 - P5 smoke and P6 Integration Review run in parallel.
 - Their PASS receipts release DEV or the sole environment; without a deployment
   target, P5 starts a local review runtime.

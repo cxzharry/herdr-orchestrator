@@ -6,17 +6,17 @@
     "delivery-flow.png"
   ],
   "derived_from_render_source_sha256": {
-    "delivery-flow.png": "598546f4d05aba7e77db90930d5dba71febebcdf231f5c134a9cc7985ca4c78d"
+    "delivery-flow.png": "34eabcad93044ad593ba226b41355e85790655d0bcea5329e3166b36158a7039"
   },
   "renderer": {
-    "chrome": "Google Chrome 150.0.7871.186",
-    "pillow": "10.2.0",
+    "chrome": "Google Chrome 150.0.7871.187",
+    "pillow": "9.2.0",
     "source_size": [3560, 1320],
     "output_size": [3000, 1113]
   },
   "sha256": {
-    "delivery-flow.excalidraw": "232733b1cc5f0e0c561cdc498b938d3d58cb2841a7b25089e71cc3fcd85cad96",
-    "delivery-flow.png": "467b341955466214803585a647311d2eeca07c1d6d2457e7bc6c0dd8bc3cbbb7",
-    "delivery-flow.svg": "598546f4d05aba7e77db90930d5dba71febebcdf231f5c134a9cc7985ca4c78d"
+    "delivery-flow.excalidraw": "b25ca304e6da13b3be020b6d921214950408644a9abaa603f6e204fa111fbaf4",
+    "delivery-flow.png": "abf8242eea48339470ac4933515078c6cd489744a558b5c19a397cd1905d3357",
+    "delivery-flow.svg": "34eabcad93044ad593ba226b41355e85790655d0bcea5329e3166b36158a7039"
   }
 }

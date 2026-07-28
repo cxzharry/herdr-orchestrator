@@ -1,79 +1,426 @@
 # Routing contract
 
-## Preflight
+## Entry and preflight
 
-Confirm `HERDR_ENV=1`, inspect the workspace/panes/agents, and use explicit IDs.
-P1 proves `gpt-5.6-sol/high` through live Codex `/status`; launch arguments only
-show intent. Before prompting any new role, verify its live model and effort.
+This runtime starts only from an approved spec and approved execution plan.
+P1 validates their paths and digests, acceptance, locked base SHA, ownership,
+dependencies, applicable review matrices, deployment topology, and required
+evidence. Missing, stale, or contradictory inputs return BLOCKED upstream.
+Do not brainstorm, redesign the product, or write a plan.
 
-P1 completes the full brainstorming workflow on every run, including written
-spec review, then uses `superpowers:writing-plans`. Herdr is already the
-user-selected execution mode, so do not ask whether to use another executor.
-Lock authoritative sources, acceptance criteria, base SHA, ownership,
-dependencies, checks, mock/seed data, system roles, deployment topology, and
-applicability for UI, browser, RBAC, persona, and high assurance.
+Confirm `HERDR_ENV=1`. Inspect the named workspace and current agents with the
+bounded preflight below. Never infer an ID from visual pane order and do not
+substitute a layout command:
 
-## Dispatch
+```bash
+test "${HERDR_ENV:-}" = 1 &&
+test "$(git -C "$root" rev-parse HEAD)" = "$base_sha" &&
+git -C "$root" diff --quiet -- &&
+herdr workspace get "$workspace_id" &&
+herdr agent list
+```
 
-Dispatch only dependency-ready lanes. Independent lanes may start together;
-schema, migration, API, or shared-contract consumers wait for their producer.
+Create one `herdr-run-manifest/v1` JSON containing the run identity and lane
+list, then initialize the ledger in one command:
 
-Every lane brief has this exact shape:
+```bash
+python3 <skill-root>/scripts/create_control_state.py \
+  --manifest "$run_dir/lane-manifest.json" \
+  --control-state "$run_dir/control-state.json"
+```
+
+The helper creates `receipts/` and `evidence/`. The ledger stores only material
+transitions and no secrets. Each lane records its stable `lane_id`, generation,
+role, live agent/pane/session, input identity, owned scope, state, and receipt
+path. Do not handcraft control-state JSON.
+
+## Launch invariant
+
+After splitting a pane, inspect its process until an available shell is
+reported; do not assume the pane is immediately ready. Parse the returned
+opaque pane ID. Start every new Codex agent with native `--yolo`.
+If `agent start` still returns `agent_pane_busy` after shell readiness, inspect
+the same pane and retry once when only its shell remains; do not split another
+pane.
+
+Use medium effort for P2-P4:
+
+```bash
+herdr agent start "$agent_name" --kind codex --pane "$pane_id" -- \
+  --yolo --model gpt-5.5 -c 'model_reasoning_effort="medium"'
+```
+
+Use high effort for P5-P8:
+
+```bash
+herdr agent start "$agent_name" --kind codex --pane "$pane_id" -- \
+  --yolo --model gpt-5.5 -c 'model_reasoning_effort="high"'
+```
+
+Use medium effort for P9. If P1 itself must be replaced, use the same
+`-- --yolo` launch boundary with `--model gpt-5.6-sol` and
+`model_reasoning_effort="high"`.
+
+Parse `argv`, pane, and session from Herdr's response, then match the Codex model
+footer in the pane tail. Use `agent get` and the same tail when launch evidence
+is incomplete. A wrong model, effort, missing `--yolo`, or mismatched identity
+is a failed launch, not a usable lane.
+Before dispatch, confirm the agent has a live session and its pane shows the
+Codex input prompt. If the first submitted prompt does not appear, resend it
+once to the same identity.
+
+Disable an external MCP server at launch only when its capability is explicitly
+outside the lane contract, using scoped
+`-c 'mcp_servers.<name>.enabled=false'`. Never change the global configuration.
+Apply those scoped flags to every applicable P5-P9 launch as well as P2-P4;
+do not omit them merely because a lane is on demand.
+
+## Prompt and wait contract
+
+Each lane receives one prompt capsule, not P1's conversation or the full plan.
+Include only the locked input path plus digest, owned scope, prerequisites,
+acceptance, terminal checks, applicable skill names, and receipt path. Load
+only the conditional references whose predicates are explicitly true in the
+approved plan. Do not load a reference because it might become relevant.
+
+`INPUT IDENTITY` always gives the approved input's absolute path and digest.
+`PREREQUISITES` explicitly marks each owned path as existing or intentionally
+new; absence of an intentionally new path is not a blocker. After approved
+inputs are locked, do not search memory, history, or prior runs for contract
+shape.
+
+Keep a dispatch capsule at or below 1,500 bytes unless exact acceptance text
+alone exceeds that bound. Keep every P1 scenario explanation and operational
+report at or below 20 lines unless a structured finding requires more. Report
+only decisions, blockers, accepted identities, and the next
+transition; never restate static rules or enumerate non-applicable evidence.
+
+Use Herdr reads for live progress and terminal receipts for completion. Refer
+to large logs and screenshots by path and digest; include only the relevant
+finding excerpt. Do not relay progress summaries between agents.
+
+Submit independent lane prompts without `--wait`. A validator-clean terminal
+receipt is the completion signal; a later chat final is not required. Use one
+filesystem wait for the blocking wave:
+
+```bash
+python3 <skill-root>/scripts/await_receipts.py \
+  --control-state "$run_dir/control-state.json" \
+  --lane "$lane_id" --timeout 600
+```
+
+Do not call `herdr agent wait` after dispatch when a receipt path exists. Do not
+poll workers sequentially, reread settled chat, or hold `agent prompt --wait`
+after terminal receipts exist.
+
+Do not inspect prior benchmark answers, unrelated run directories, superseded
+receipts, or old conversations for response shape. Only current-contract
+approved inputs and accepted receipts may influence routing.
+Loading a false-predicate reference is a contract failure; correct it before
+dispatch.
+
+## Dispatch capsule
+
+Dispatch only READY lanes. Independent lanes may start together; consumers of
+schema, migration, API, or shared contracts wait for accepted producer inputs.
+
+Every capsule has this exact shape:
 
 ```text
 ROLE:
 GOAL:
-REQUIRED SKILLS:
-INPUTS / BASE SHA / ARTIFACT DIGEST:
-WRITABLE PATHS:
+REQUIRED EVENT SKILLS:
+CONTRACT / LANE / GENERATION:
+INPUT IDENTITY:
+OWNED SCOPE:
 PREREQUISITES:
-DONE EVIDENCE:
+ACCEPTANCE:
+TERMINAL CHECKS:
+RECEIPT PATH:
 DO NOT:
 STOP / ESCALATE WHEN:
 ```
 
-Name skills in invocation order and attach observable conditions. Do not load
-conditional skills before their condition occurs.
+`RECEIPT PATH` must contain the exact `write_lane_receipt.py` command for the
+current lane. The worker supplies only output identity, covered acceptance, and
+checks; the helper copies contract, generation, role, agent, pane, session, and
+input identity from control-state. Never ask a worker to handcraft receipt JSON:
 
-| Role or event | Skill route |
+```bash
+python3 <skill-root>/scripts/write_lane_receipt.py \
+  --control-state "$run_dir/control-state.json" --lane "$lane_id" --status PASS \
+  --output diff_sha256="$diff_sha256" \
+  --acceptance "$covered_acceptance" --check "$check_command=PASS"
+```
+
+Name only event skills that apply now:
+
+| Event | Skill |
 |---|---|
-| P1 design | `superpowers:brainstorming` |
-| P1 after design approval | `superpowers:writing-plans` |
-| P2-P5 behavior change | `superpowers:test-driven-development` |
-| Implementation failure | `superpowers:systematic-debugging` |
-| P5 isolated Git lanes | `superpowers:using-git-worktrees` |
-| Owning lane receives a finding | `superpowers:receiving-code-review` |
-| Any handoff, PASS, publish, or completion claim | `superpowers:verification-before-completion` |
-| Branch disposition not locked | `superpowers:finishing-a-development-branch` |
+| Implement behavior | `test-driven-development` |
+| Unexpected failure | `systematic-debugging` |
+| Isolated Git lane | `using-git-worktrees` |
+| Owning lane receives a finding | `receiving-code-review` |
+| Any terminal claim | `verification-before-completion` |
+| Branch disposition not locked | `finishing-a-development-branch` |
 
 Never invoke these inside Herdr:
 
+- `brainstorming`
+- `writing-plans`
 - `dispatching-parallel-agents`
 - `subagent-driven-development`
 - `executing-plans`
 - `requesting-code-review`
 
-They create a nested scheduler or reviewer. P1 and the fixed Herdr panes replace
-those procedures.
+Herdr owns agent lifecycle, parallelism, and independent review. Do not create a
+nested scheduler or reviewer inside a lane.
 
-## Phase transitions
+## Worker reuse policy
 
-P5 must restart before every role change. At any integration wave boundary, P5
-may restart as Integration Owner and publish a prerequisite `wave_base_sha`.
-When dependent Worker 4 work remains, P5 exits the integration role and must
-restart as Worker 4 from the published wave base. After the final Worker 4
-handoff, P5 restarts as Integration Owner for final publication. Each clean
-session receives only the locked contract and accepted handoffs.
+Prefer a compatible warm P2-P4 lane over starting another Codex process. A warm
+lane is an idle Herdr agent whose launch response proves `--yolo`,
+`gpt-5.5/medium`, scoped MCP settings, and a pane owned by this delivery pool.
+P5-P9 remain on demand; keeping high-effort review lanes warm wastes context on
+work that may not apply.
 
-After final publication, P5 smoke and P6 review run concurrently. P6 is
-read-only and returns a bounded PASS or finding package, preventing P5 from
-self-approving integration.
+Worker reuse is not a delivery gate. Compact and Standard remain the only
+delivery gates. Resolve the installed skill root, then prepare capacity with:
 
-P7-P9 may prepare as soon as the artifact exists. After deployment they run
-applicable reviews concurrently and send receipts to P1 without waiting for
-each other. A downstream action starts when its own prerequisites pass; side
-work does not create a global barrier.
+```bash
+python3 <skill-root>/scripts/manage_worker_pool.py prepare --contract-id \
+  "$contract_id" --cwd "$root" --count "$worker_count"
+```
 
-Reviewers never fix production code. P1 routes findings to an owning lane. The
-same blocker twice without new evidence triggers reassignment or user
-escalation, not another unbounded retry.
+Use the returned agent, pane, session, and reset state directly. `action=reused`
+means no split, start, reset, or model-check turn is needed. `action=reset`
+returns replacement sessions already input-ready. `bind` remains only as a
+compatibility check after an interrupted older pool operation:
+
+```bash
+python3 <skill-root>/scripts/manage_worker_pool.py bind --contract-id \
+  "$contract_id"
+```
+
+After approved-input identity and gate eligibility pass, P1 may start the
+required number of empty P2-P4 agents while it finishes lane-specific
+validation. `status=ready` means startup/trust gates are cleared and every
+worker is at its input prompt; do not repeat pane reads or press Enter. A first
+launch may remain `rebind_pending` until its first capsule creates a session;
+run the compatibility `bind` once immediately after that fan-out.
+Warming creates no product prompt and grants no scope. Every
+assignment creates a `lease_id` bound to contract, lane, generation, agent,
+pane, session, exact root/base, and owned paths. One live lease owns one lane;
+never multiplex unrelated work through an occupied agent.
+
+Reuse rules:
+
+- Within the same approved delivery contract, retain useful project context and
+  send only the next bounded capsule. Do not reread static skills or references
+  unless a new event makes them applicable.
+- Before leasing a pool pane to a different contract, send `/new` without
+  `--wait`. The first capsule must `cd` to the exact root, prove base and owned
+  scope before mutation, and P1 must capture the new session identity after the
+  lifecycle transition.
+- Release a lease only after its accepted checkpoint persists outside chat and
+  the agent is settled. A formatting-only chat failure does not invalidate
+  verified Git work.
+- If reset, identity, root, scope, or clean-state proof is missing; the lane is
+  blocked; or prior context could affect acceptance, cold-start the lane in a
+  new pool pane. Preserve the old pane until its useful work is checkpointed.
+
+Pool reuse is an optimization, never an acceptance shortcut. Current generation,
+live identity, scoped diff, and fresh checks remain mandatory. The pool removes
+process startup and repeated static-context loading while preserving direct
+interrupt, redirect, and lane-level recovery.
+
+## Compact gate
+
+Use the compact gate only when every condition is locked true:
+
+- no deployment target and verified local delivery is accepted;
+- approved low risk, clean shared tree, and one to three disjoint owned paths;
+- deterministic local checks cover acceptance;
+- no schema, migration, auth, security, RBAC, UI, browser, external-state,
+  destructive, production-critical, or high-assurance scope;
+- no integration mutation, packaging, conflict resolution, or independent
+  reviewer is required by the approved plan.
+
+If any condition is false or becomes false, use the standard gate.
+
+The compact topology is:
+
+```text
+P1 -> ready P2/P3/P4 workers in parallel
+   -> P1 independently reruns scope + deterministic checks
+   -> verified local delivery
+```
+
+P1 is independent because it never mutates worker scope. Do not start P5-P9.
+Run the worker reuse policy before cold-starting missing capacity.
+Do not create a run directory, `control-state.json`, or receipt files on the
+compact path. Live Herdr identity plus the scoped Git diff is the checkpoint.
+If P1 restarts or a lane needs replacement, inspect that checkpoint and upgrade
+to the standard gate before accepting more work.
+
+Compact preflight is limited to `HERDR_ENV`, current pane/layout and agent list,
+locked base SHA, clean index/tree, owned paths, and the exact acceptance
+command. Do not run broad CLI help, workspace inventories, per-file hashes, or
+unrelated source inspection after those facts are confirmed.
+
+Because compact scope permits no external-state or UI work, disable the current
+local external MCP servers for compact workers at launch:
+
+```bash
+-c 'mcp_servers.pencil.enabled=false' \
+-c 'mcp_servers.notion.enabled=false' \
+-c 'mcp_servers.figma.enabled=false' \
+-c 'mcp_servers.atlassian.enabled=false' \
+-c 'mcp_servers.openaiDeveloperDocs.enabled=false'
+```
+
+Each worker returns one compact terminal message of at most six physical lines,
+72 columns per line, and 600 bytes total:
+
+```text
+COMPACT PASS <contract>/<lane>/g<generation>
+INPUT <short digest>
+PATHS <comma-separated owned paths>
+DIFF <sha256>
+CHECKS <command>=PASS[; ...]
+BLOCKER: none
+```
+
+P1 obtains agent, pane, and session from live Herdr state and accepts the message
+only after matching that identity, owned paths, current generation, input
+identity, exact diff, and fresh check output. Report the accepted compact
+identities in the final response; no separate receipt file or P5/P6 session is
+required.
+
+Read only the compact terminal tail:
+
+```bash
+herdr agent read "$agent_name" --source recent-unwrapped --lines 12
+```
+
+If `COMPACT PASS` is absent, use one bounded wait and read the same tail again.
+Do not load full terminal history or raw logs unless a finding requires them.
+
+Any blocker, finding, scope expansion, replacement, non-determinism, or failed
+P1 check upgrades the run to the standard gate. Preserve the compact evidence,
+increment only affected generations, and require validator-clean JSON receipts
+from that transition onward.
+
+## Standard gate state and acceptance
+
+Standard preflight is one bounded pass: `HERDR_ENV`, exact root/base, clean
+index/tree, approved input identity, explicit owned paths, current workspace
+agents, and applicable references. Do not run broad Herdr inventories, CLI
+help, optional binary probes, or reread helper source. Use the commands already
+given in this contract.
+
+Once Standard and integration applicability are locked, start a fresh P5
+Integration Owner at the same fan-out boundary as P2-P4. P5 may write only its
+owned RED integration tests, fixtures, and contract scaffold while upstream
+workers run. It must not accept or publish worker bytes until current receipts
+are validator-clean. This overlaps preparation without weakening the
+dependency gate.
+
+When the approved input names an executable acceptance harness, P5 must read
+that exact harness before writing RED tests or scaffold. Treat its public
+arguments, output keys, digest formats, and artifact shape as locked acceptance,
+not as a later smoke discovery. P5 still must not inspect prior run outputs.
+
+Use only:
+
+```text
+PLANNED -> READY -> ACTIVE -> CANDIDATE -> ACCEPTED
+                     |           |
+                     v           v
+                  BLOCKED     REJECTED
+
+Any generation -> SUPERSEDED when its input identity changes
+```
+
+Progress is observable through Herdr and does not create a receipt. A lane
+writes one terminal PASS, FINDING, or BLOCKED receipt only through
+`write_lane_receipt.py`. Before acceptance, run:
+
+```bash
+python3 scripts/validate_lane_receipt.py "$receipt_path" \
+  --control-state "$run_dir/control-state.json"
+```
+
+P1 additionally checks semantic evidence, owned scope, commands, and acceptance
+coverage. Accept only the current contract, generation, agent, pane, session,
+and input identity.
+
+Never hand-edit lane generations in JSON. Change exactly one lane atomically:
+
+```bash
+python3 <skill-root>/scripts/set_lane_state.py \
+  --control-state "$run_dir/control-state.json" \
+  --lane "$lane_id" --generation "$generation" --state ACTIVE \
+  --receipt-path "$receipt_path"
+```
+
+When an on-demand P5-P9 session first becomes live, write its lane capsule JSON
+and register it without hand-editing control-state:
+
+```bash
+python3 <skill-root>/scripts/register_lane.py \
+  --control-state "$run_dir/control-state.json" \
+  --lane-json "$run_dir/$lane_id.json"
+```
+
+If a public contract says immutable or frozen, terminal acceptance must probe
+attribute mutation plus every nested or constructor-supplied collection
+surface. A decorator alone is not evidence of deep immutability.
+
+## Direct control and recovery
+
+P1 addresses a lane by its recorded agent_name, pane_id, and session_id.
+Aggregate reads are for overview. At a dependency boundary, wait only on the
+lane blocking that transition; unrelated lanes continue.
+
+For a stalled lane:
+
+1. Inspect the named agent, pane process, Git state, and evidence.
+2. If responsive and input identity is unchanged, send one bounded redirect to
+   the same generation.
+3. If replacement is required, preserve its work and evidence, mark it
+   SUPERSEDED, increment generation, and start a clean agent from the latest
+   accepted checkpoint.
+4. The recovered owner reconciles dirty or ambiguous work before acceptance.
+5. Reject every late old-generation receipt even when its content looks valid.
+
+The same blocker twice without new evidence triggers reassignment or user
+escalation. Never restart unrelated panes or silently discard useful work.
+
+## Integration and review
+
+P5 is the only integration mutator and deploy owner. Start it directly as
+Integration Owner when that role is applicable. If an existing P5 Worker 4
+session would change roles, P5 must restart first; a prompt claiming a role
+change is not a clean authority boundary. Each new session receives only the
+locked contract and accepted receipt identities.
+
+After publication, P5 smoke and P6 review run concurrently against the same
+artifact generation and tuple. P6-P9 are read-only and return PASS, FINDING, or
+BLOCKED. P1 routes findings to the owning worker.
+
+P7-P9 prepare early but start only when their approved matrices apply. A new
+artifact invalidates old tuple-bound evidence; rerun the locked smoke, P6, and
+only impacted applicable matrices.
+
+The standard single-worker path is exactly:
+
+```text
+P1 -> P2 -> P5 Integration Owner
+             -> P5 smoke || P6 Integration Reviewer
+             -> deploy or verified local delivery
+             -> applicable P7/P8/P9 only
+```
+
+Do not substitute P7 for P5 or P6. Do not start P3, P4, P7, P8, or P9 when
+their approved scope is absent.

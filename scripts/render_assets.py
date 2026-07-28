@@ -19,6 +19,11 @@ MANIFEST = ASSET_DIR / "manifest.json"
 def toolchain() -> tuple[str, str]:
     chrome = shutil.which("google-chrome")
     if not chrome:
+        mac_chrome = Path(
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        )
+        chrome = str(mac_chrome) if mac_chrome.is_file() else None
+    if not chrome:
         raise RuntimeError("google-chrome is required")
     version = subprocess.run(
         [chrome, "--version"],
@@ -45,24 +50,30 @@ def render(output: Path) -> None:
         temp = Path(temp_name)
         screenshot = temp / "full.png"
         profile = temp / "chrome-profile"
-        subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--no-sandbox",
-                "--disable-gpu",
-                "--hide-scrollbars",
-                "--force-device-scale-factor=1",
-                f"--user-data-dir={profile}",
-                f"--window-size={source_size[0]},{source_size[1]}",
-                f"--screenshot={screenshot}",
-                svg.resolve().as_uri(),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            subprocess.run(
+                [
+                    chrome,
+                    "--headless=new",
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--hide-scrollbars",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--force-device-scale-factor=1",
+                    f"--user-data-dir={profile}",
+                    f"--window-size={source_size[0]},{source_size[1]}",
+                    f"--screenshot={screenshot}",
+                    svg.resolve().as_uri(),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except subprocess.TimeoutExpired:
+            if not screenshot.is_file() or screenshot.stat().st_size == 0:
+                raise
         with Image.open(screenshot) as image:
             rendered = image.convert("RGB").resize(
                 output_size,

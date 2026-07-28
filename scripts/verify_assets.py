@@ -20,8 +20,8 @@ REQUIRED_FILES = {
     "delivery-flow.svg",
 }
 CANONICAL_SOURCE_HASHES = {
-    "delivery-flow.excalidraw": "232733b1cc5f0e0c561cdc498b938d3d58cb2841a7b25089e71cc3fcd85cad96",
-    "delivery-flow.svg": "598546f4d05aba7e77db90930d5dba71febebcdf231f5c134a9cc7985ca4c78d",
+    "delivery-flow.excalidraw": "b25ca304e6da13b3be020b6d921214950408644a9abaa603f6e204fa111fbaf4",
+    "delivery-flow.svg": "34eabcad93044ad593ba226b41355e85790655d0bcea5329e3166b36158a7039",
 }
 PANE_IDS = (
     "orchestrator",
@@ -151,9 +151,9 @@ EXPECTED_NODE_TYPES = {
 }
 EXPECTED_TEXTS = {
     "task_text": "USER\nTASK",
-    "orchestrator_text": "P1  ORCHESTRATOR\n\nbrainstorm · plan · route\nnever self-approve",
-    "ready_text": "Ready?\nSpec approved?",
-    "contract_text": "EXECUTION CONTRACT\n\nscope · ownership · skills\nchecks · deploy policy",
+    "orchestrator_text": "P1  ORCHESTRATOR\n\nverify plan · route · recover\nnever self-approve",
+    "ready_text": "Approved\nspec + plan?",
+    "contract_text": "EXECUTION CONTRACT\n\nplan · scope · lane identity\nchecks · deploy policy",
     "isolation_text": "Need\nisolation?",
     "worktree_text": "WORKTREE / LANE\nbranch · port · state",
     "fork_text": "",
@@ -186,7 +186,7 @@ EXPECTED_TEXTS = {
     "title": "9-PANE EVENT-DRIVEN DELIVERY LOOP",
     "subtitle": "P1 Orchestrator · P2–P5 Workers · P6 Integration Review · P7 QC · P8 Designer · P9 Persona",
     "legend": "GREEN = ORCHESTRATOR   WHITE = OTHER AGENT   VIOLET BADGE = SECOND ROLE, SAME PANE",
-    "phase_1": "1  PLAN + CONTRACT",
+    "phase_1": "1  APPROVED INPUT + CONTRACT",
     "phase_2": "2  READY WORK WAVES",
     "phase_3": "3  VERIFY + DEPLOY",
     "phase_4": "4  PARALLEL REVIEW",

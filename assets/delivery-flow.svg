@@ -68,9 +68,9 @@
 <rect id="verified" x="1150" y="800" width="250" height="130" rx="18" fill="url(#blueHatch)" stroke="#74c0fc" stroke-width="2.5"/>
 <ellipse id="end" cx="935.0" cy="867.5" rx="95.0" ry="52.5" fill="#111318" stroke="#f1f3f5" stroke-width="2.5"/>
 <text font-size="20" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="130.0" y="467.5">USER</tspan><tspan x="130.0" y="492.5">TASK</tspan></text>
-<text font-size="18" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="430.0" y="446.25">P1  ORCHESTRATOR</tspan><tspan x="430.0" y="468.75"></tspan><tspan x="430.0" y="491.25">brainstorm · plan · route</tspan><tspan x="430.0" y="513.75">never self-approve</tspan></text>
-<text font-size="18" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="745.0" y="473.75">Ready?</tspan><tspan x="745.0" y="496.25">Spec approved?</tspan></text>
-<text font-size="17" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="1060.0" y="448.125">EXECUTION CONTRACT</tspan><tspan x="1060.0" y="469.375"></tspan><tspan x="1060.0" y="490.625">scope · ownership · skills</tspan><tspan x="1060.0" y="511.875">checks · deploy policy</tspan></text>
+<text font-size="18" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="430.0" y="446.25">P1  ORCHESTRATOR</tspan><tspan x="430.0" y="468.75"></tspan><tspan x="430.0" y="491.25">verify plan · route · recover</tspan><tspan x="430.0" y="513.75">never self-approve</tspan></text>
+<text font-size="18" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="745.0" y="473.75">Approved</tspan><tspan x="745.0" y="496.25">spec + plan?</tspan></text>
+<text font-size="17" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="1060.0" y="448.125">EXECUTION CONTRACT</tspan><tspan x="1060.0" y="469.375"></tspan><tspan x="1060.0" y="490.625">plan · scope · lane identity</tspan><tspan x="1060.0" y="511.875">checks · deploy policy</tspan></text>
 <text font-size="18" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="1370.0" y="476.25">Need</tspan><tspan x="1370.0" y="498.75">isolation?</tspan></text>
 <text font-size="16" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="1380.0" y="695.0">WORKTREE / LANE</tspan><tspan x="1380.0" y="715.0">branch · port · state</tspan></text>
 <text font-size="16" fill="#f1f3f5" text-anchor="middle" dominant-baseline="middle"><tspan x="1568.0" y="483.0"></tspan></text>
@@ -95,7 +95,7 @@
 <text font-size="28" fill="#f1f3f5" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="42.0">9-PANE EVENT-DRIVEN DELIVERY LOOP</tspan></text>
 <text font-size="16" fill="#adb5bd" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="98.0">P1 Orchestrator · P2–P5 Workers · P6 Integration Review · P7 QC · P8 Designer · P9 Persona</tspan></text>
 <text font-size="13" fill="#adb5bd" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="150.0">GREEN = ORCHESTRATOR   WHITE = OTHER AGENT   VIOLET BADGE = SECOND ROLE, SAME PANE</tspan></text>
-<text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="255.0">1  PLAN + CONTRACT</tspan></text>
+<text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="255.0">1  APPROVED INPUT + CONTRACT</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="1555" y="190.0">2  READY WORK WAVES</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="2250" y="155.0">3  VERIFY + DEPLOY</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="2240" y="690.0">4  PARALLEL REVIEW</tspan></text>

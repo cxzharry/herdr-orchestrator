@@ -1,25 +1,25 @@
 ---
 name: herdr-orchestrator
-description: Use when coordinating Git-backed product delivery in Herdr across implementation, integration, deployment, QC, UI/UX, persona, Playwright, RBAC, mock-data, or worktree lanes.
+description: Execute an approved implementation plan through directly controllable Herdr lanes to verified delivery.
 ---
 
 # Herdr Orchestrator
 
-Run an event-driven delivery loop. P1 owns routing and evidence consistency; it
-never implements worker changes or self-approves.
-
-**REQUIRED SUB-SKILL:** Use `herdr` for live pane and agent control.
+P1 routes plans without implementing or self-approving. Use `herdr` for agent
+control.
 
 ## Read first
 
-Inspect [the graph](references/delivery-flow.md), call `view_image` on
-`assets/delivery-flow.png`, then read [routing](references/routing.md).
+Read [routing](references/routing.md) first and select a gate. For a compact
+gate, stop there. For a standard gate, inspect
+[the graph](references/delivery-flow.md) and call `view_image` on
+`assets/delivery-flow.png`.
 
 Load details only when applicable:
 
 | Predicate | Reference |
 |---|---|
-| Multiple writers, integration, or isolation | [Git integration](references/git-integration.md) |
+| Standard-gate integration or isolation | [Git integration](references/git-integration.md) |
 | Runtime, browser, RBAC, persona, or deployment | [Review and deployment](references/review-deploy.md) |
 | Security-sensitive, destructive, production-critical, or explicitly strict | [High assurance](references/high-assurance.md) |
 
@@ -31,23 +31,26 @@ Load details only when applicable:
 | P2 | Worker 1 | `gpt-5.5` | `medium` |
 | P3 | Worker 2 | `gpt-5.5` | `medium` |
 | P4 | Worker 3 | `gpt-5.5` | `medium` |
-| P5 | Worker 4, then Integration Owner | `gpt-5.6-sol` | `high` |
-| P6 | Integration Reviewer | `gpt-5.6-sol` | `high` |
-| P7 | QC | `gpt-5.6-sol` | `high` |
+| P5 | Worker 4, then Integration Owner | `gpt-5.5` | `high` |
+| P6 | Integration Reviewer | `gpt-5.5` | `high` |
+| P7 | QC | `gpt-5.5` | `high` |
 | P8 | Designer | `gpt-5.5` | `high` |
 | P9 | Persona | `gpt-5.5` | `medium` |
 
-## Run
+## Runtime contract
 
-1. P1 completes brainstorming and planning, then locks applicability,
-   dependencies, ownership, checks, deployment topology, and evidence.
-2. Dispatch only ready P2-P5 lanes with the brief in `routing.md`.
-3. At an integration boundary, P5 exits its current session and restarts as
-   Integration Owner. It may publish a prerequisite wave base, restart Worker 4
-   from it, then restart again for final publication.
-4. Run P5 smoke and P6 Integration Review concurrently. Both must pass before
-   P1 authorizes P5 to deploy.
-5. P7, P8, and P9 prepare early and run applicable reviews concurrently. Each
-   reports to P1 immediately.
-6. Promote or deliver only when every applicable blocking gate passes against
-   the same artifact.
+1. Validate approved inputs; do not reopen discovery or planning.
+2. Select the compact or standard gate defined in `routing.md`.
+3. Reuse workers; cold-start only missing or incompatible capacity.
+4. Dispatch only ready lanes with `--yolo` and roster model/effort.
+5. Give each lane one capsule, applicable references, and its receipt command.
+6. Compact gate: workers change disjoint paths; non-mutating P1 reruns locked
+   checks and verifies local delivery. Do not start P5-P9.
+7. Standard gate: start P5 at fan-out, read any locked executable acceptance
+   harness, then prepare RED integration work. Accept current receipts before
+   it consumes worker bytes. P5 smokes and P6 reviews the same artifact.
+8. Deliver only after applicable gates pass.
+
+Use live state for progress. Persist only material transitions, terminal
+receipts, and evidence references. P1 output is at most 20 physical lines:
+decisions, blockers, identities, and next transition.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Herdr Orchestrator"
-  short_description: "Run fast nine-pane Herdr delivery loops"
-  default_prompt: "Use $herdr-orchestrator to route this task through nine Herdr panes with event-driven integration, deployment, and parallel review."
+  short_description: "Run Herdr delivery from approved plan to deploy"
+  default_prompt: "Use $herdr-orchestrator to execute this approved plan through directly controllable Herdr lanes, verified integration, applicable review, and deploy."
