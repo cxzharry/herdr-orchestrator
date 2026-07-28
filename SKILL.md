@@ -42,8 +42,9 @@ Load details only when applicable:
 1. P1 completes brainstorming and planning, then locks applicability,
    dependencies, ownership, checks, deployment topology, and evidence.
 2. Dispatch only ready P2-P5 lanes with the brief in `routing.md`.
-3. P5 exits its worker session, restarts as Integration Owner, and publishes one
-   immutable artifact.
+3. At an integration boundary, P5 exits its current session and restarts as
+   Integration Owner. It may publish a prerequisite wave base, restart Worker 4
+   from it, then restart again for final publication.
 4. Run P5 smoke and P6 Integration Review concurrently. Both must pass before
    P1 authorizes P5 to deploy.
 5. P7, P8, and P9 prepare early and run applicable reviews concurrently. Each

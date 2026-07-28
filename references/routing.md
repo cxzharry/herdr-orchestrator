@@ -58,10 +58,16 @@ those procedures.
 
 ## Phase transitions
 
-P5 must restart after Worker 4 handoff and before acting as Integration Owner.
-The clean session receives only the locked contract and accepted handoffs.
-After publication, P5 smoke and P6 review run concurrently. P6 is read-only and
-returns a bounded PASS or finding package.
+P5 must restart before every role change. At any integration wave boundary, P5
+may restart as Integration Owner and publish a prerequisite `wave_base_sha`.
+When dependent Worker 4 work remains, P5 exits the integration role and must
+restart as Worker 4 from the published wave base. After the final Worker 4
+handoff, P5 restarts as Integration Owner for final publication. Each clean
+session receives only the locked contract and accepted handoffs.
+
+After final publication, P5 smoke and P6 review run concurrently. P6 is
+read-only and returns a bounded PASS or finding package, preventing P5 from
+self-approving integration.
 
 P7-P9 may prepare as soon as the artifact exists. After deployment they run
 applicable reviews concurrently and send receipts to P1 without waiting for

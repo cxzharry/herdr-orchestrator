@@ -131,6 +131,8 @@ def verify() -> dict:
     routing_markers = {
         "full brainstorm": "full brainstorming workflow on every run",
         "P5 restart": "P5 must restart",
+        "wave integration": "any integration wave boundary",
+        "worker resume": "restart as Worker 4 from the published wave base",
         "parallel integration": "P5 smoke and P6 review run concurrently",
         "bounded blocker": "same blocker twice",
     }
