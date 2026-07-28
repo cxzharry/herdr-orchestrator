@@ -110,7 +110,9 @@ def verify() -> dict:
         if skill_name not in routing:
             failures.append(f"routing must forbid nested skill: {skill_name}")
 
-    review = reference_text.get("references/review-deploy.md", "")
+    review = " ".join(
+        reference_text.get("references/review-deploy.md", "").split()
+    )
     deployment_markers = {
         "staged": "dev + main/production",
         "single": "single environment",
@@ -125,6 +127,7 @@ def verify() -> dict:
         if marker not in review:
             failures.append(f"review/deploy contract is missing {name}: {marker}")
 
+    routing = " ".join(routing.split())
     routing_markers = {
         "full brainstorm": "full brainstorming workflow on every run",
         "P5 restart": "P5 must restart",
