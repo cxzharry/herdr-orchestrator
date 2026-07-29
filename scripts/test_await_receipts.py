@@ -111,13 +111,14 @@ class AwaitReceiptsTests(unittest.TestCase):
             calls += 1
             if calls == 2:
                 self.receipt_path.write_text(
-                    json.dumps(pass_receipt("w9:p8")),
+                    json.dumps(pass_receipt("w1:p8")),
                     encoding="utf-8",
                 )
             return [
                 {
                     "name": "hdr_p2",
-                    "pane_id": "w9:p8",
+                    "pane_id": "w1:p8",
+                    "workspace_id": "w1",
                     "agent_session": {"value": "session-1"},
                 }
             ]
@@ -132,11 +133,57 @@ class AwaitReceiptsTests(unittest.TestCase):
         )
 
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
-        self.assertEqual(state["lanes"]["schema"]["pane_id"], "w9:p8")
+        self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p8")
         self.assertEqual(
             result["rebound"]["schema"],
-            {"previous_pane_id": "w1:p2", "pane_id": "w9:p8"},
+            {"previous_pane_id": "w1:p2", "pane_id": "w1:p8"},
         )
+
+    def test_same_session_outside_workspace_is_missing_not_moved(self):
+        result = reconcile_once(
+            self.state_path,
+            ["schema"],
+            live_agents=[
+                {
+                    "name": "hdr_p2",
+                    "pane_id": "w2:p8",
+                    "workspace_id": "w2",
+                    "agent_session": {"value": "session-1"},
+                }
+            ],
+        )
+
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(result["moved"], {})
+        self.assertEqual(result["name_drift"], {})
+        self.assertEqual(result["missing"]["schema"]["reason"], "workspace_mismatch")
+        self.assertEqual(result["missing"]["schema"]["pane_id"], "w1:p2")
+        self.assertEqual(result["missing"]["schema"]["observed_pane_id"], "w2:p8")
+        self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p2")
+
+    def test_moved_out_session_is_lost_without_rebinding(self):
+        with self.assertRaises(LaneLostError) as caught:
+            await_lanes(
+                self.state_path,
+                ["schema"],
+                timeout=1,
+                poll=0.001,
+                live_agents=lambda: [
+                    {
+                        "name": "hdr_p2",
+                        "pane_id": "w2:p8",
+                        "workspace_id": "w2",
+                        "agent_session": {"value": "session-1"},
+                    }
+                ],
+                liveness_poll=0.001,
+                missing_checks=2,
+            )
+
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(caught.exception.lost["schema"]["reason"], "workspace_mismatch")
+        self.assertEqual(caught.exception.lost["schema"]["observed_pane_id"], "w2:p8")
+        self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p2")
 
     def test_reports_closed_lane_lost_before_receipt_timeout(self):
         with self.assertRaises(LaneLostError) as caught:
@@ -179,14 +226,15 @@ class AwaitReceiptsTests(unittest.TestCase):
             live_agents=[
                 {
                     "name": "hdr_p2",
-                    "pane_id": "w9:p8",
+                    "pane_id": "w1:p8",
+                    "workspace_id": "w1",
                     "agent_session": {"value": "session-1"},
                 }
             ],
         )
 
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
-        self.assertEqual(result["moved"]["schema"]["pane_id"], "w9:p8")
+        self.assertEqual(result["moved"]["schema"]["pane_id"], "w1:p8")
         self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p2")
 
     def test_reconcile_once_reports_name_drift_separately_from_move(self):

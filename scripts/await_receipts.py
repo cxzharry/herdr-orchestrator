@@ -51,6 +51,71 @@ def _session_id(agent: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
+def _workspace_from_pane(pane_id: Any) -> str | None:
+    if not pane_id:
+        return None
+    value = str(pane_id)
+    return value.split(":", 1)[0] if ":" in value else None
+
+
+def _lane_workspace(state: dict[str, Any], lane: dict[str, Any]) -> str | None:
+    controller = state.get("controller") or state.get("p1") or {}
+    return (
+        lane.get("workspace_id")
+        or lane.get("controller_workspace_id")
+        or _workspace_from_pane(lane.get("pane_id"))
+        or controller.get("workspace_id")
+        or _workspace_from_pane(controller.get("pane_id"))
+        or _workspace_from_pane(state.get("controller_scope"))
+    )
+
+
+def _agent_workspaces(agent: dict[str, Any]) -> set[str]:
+    values = {
+        str(value)
+        for value in (
+            agent.get("workspace_id"),
+            _workspace_from_pane(agent.get("pane_id")),
+        )
+        if value
+    }
+    return values
+
+
+def _workspace_mismatch_payload(
+    state: dict[str, Any],
+    lane: dict[str, Any],
+    agent: dict[str, Any],
+    session: str,
+) -> dict[str, Any] | None:
+    expected = _lane_workspace(state, lane)
+    observed = _agent_workspaces(agent)
+    if not expected or not observed or observed == {expected}:
+        return None
+    observed_mismatch = sorted(value for value in observed if value != expected)
+    return {
+        "reason": "workspace_mismatch",
+        "generation": lane["generation"],
+        "agent_name": lane["agent_name"],
+        "pane_id": lane["pane_id"],
+        "session_id": session,
+        "expected_workspace_id": expected,
+        "observed_workspace_id": observed_mismatch[0] if observed_mismatch else sorted(observed)[0],
+        "observed_pane_id": agent.get("pane_id"),
+        "observed_agent_name": agent.get("name"),
+    }
+
+
+def _missing_payload(lane: dict[str, Any], session: str) -> dict[str, Any]:
+    return {
+        "reason": "session_not_live",
+        "generation": lane["generation"],
+        "agent_name": lane["agent_name"],
+        "pane_id": lane["pane_id"],
+        "session_id": session,
+    }
+
+
 def reconcile_once(
     state_path: Path,
     lane_ids: list[str],
@@ -91,13 +156,11 @@ def reconcile_once(
             raise ReceiptWaitError(f"{lane_id} has no live session identity")
         agent = by_session.get(session)
         if agent is None:
-            result["missing"][lane_id] = {
-                "reason": "session_not_live",
-                "generation": lane["generation"],
-                "agent_name": lane["agent_name"],
-                "pane_id": lane["pane_id"],
-                "session_id": session,
-            }
+            result["missing"][lane_id] = _missing_payload(lane, session)
+            continue
+        mismatch = _workspace_mismatch_payload(state, lane, agent, session)
+        if mismatch:
+            result["missing"][lane_id] = mismatch
             continue
         pane_id = agent.get("pane_id")
         if pane_id and pane_id != lane.get("pane_id"):
@@ -132,6 +195,14 @@ def _rebind_lane(
         lane = value.get("lanes", {}).get(lane_id)
         if lane is None or lane.get("session_id") != expected_session_id:
             return None
+        mismatch = _workspace_mismatch_payload(
+            value,
+            lane,
+            agent,
+            expected_session_id,
+        )
+        if mismatch:
+            raise ReceiptWaitError(f"{lane_id} workspace mismatch")
         previous_pane_id = lane.get("pane_id")
         changed = previous_pane_id != pane_id
         lane["pane_id"] = pane_id
@@ -208,6 +279,17 @@ def await_lanes(
                     missing_counts[lane_id] = 0
                 agent = by_session.get(session)
                 if agent is not None:
+                    mismatch = _workspace_mismatch_payload(
+                        state,
+                        lane,
+                        agent,
+                        session,
+                    )
+                    if mismatch:
+                        missing_counts[lane_id] += 1
+                        if missing_counts[lane_id] >= missing_checks:
+                            lost[lane_id] = mismatch
+                        continue
                     missing_counts[lane_id] = 0
                     event = _rebind_lane(
                         state_path,
@@ -220,13 +302,7 @@ def await_lanes(
                     continue
                 missing_counts[lane_id] += 1
                 if missing_counts[lane_id] >= missing_checks:
-                    lost[lane_id] = {
-                        "reason": "session_not_live",
-                        "generation": lane["generation"],
-                        "agent_name": lane["agent_name"],
-                        "pane_id": lane["pane_id"],
-                        "session_id": session,
-                    }
+                    lost[lane_id] = _missing_payload(lane, session)
             if lost:
                 raise LaneLostError(lost)
             next_liveness = now + liveness_poll
