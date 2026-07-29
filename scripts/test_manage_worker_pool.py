@@ -133,10 +133,49 @@ class FakeClient:
         )
         agent["name"] = name
 
-    def quarantine(self, name):
-        self.calls.append(("quarantine", name))
-        agent = next(agent for agent in self.agents if agent["name"] == name)
-        agent["name"] = f"orphan_{name}"
+    def quarantine(self, target, requested_name=None):
+        self.calls.append(("quarantine", target, requested_name))
+        agent = next(
+            agent
+            for agent in self.agents
+            if agent["name"] == target or agent["pane_id"] == target
+        )
+        agent["name"] = f"orphan_{requested_name or target}"
+
+
+class PartialStartClient(FakeClient):
+    def __init__(self):
+        super().__init__()
+        self.created_panes = []
+        self.hidden_started = []
+        self.fail_first_start = True
+
+    def create_panes(self, count, cwd):
+        panes = super().create_panes(count, cwd)
+        self.created_panes.extend(panes)
+        return panes
+
+    def list_agents(self):
+        self.calls.append(("list",))
+        if self.hidden_started:
+            self.agents.extend(self.hidden_started)
+            self.hidden_started = []
+        return list(self.agents)
+
+    def start_workers(self, workers):
+        if self.fail_first_start:
+            self.calls.append(("start_workers", workers))
+            self.fail_first_start = False
+            for worker in workers[:2]:
+                self.hidden_started.append(
+                    live_agent(
+                        worker["name"],
+                        worker["pane_id"],
+                        f"late-session-{worker['slot'].lower()}",
+                    )
+                )
+            raise PoolError('{"kind": "agent_pane_busy"}')
+        return super().start_workers(workers)
 
 
 class BusyStartClient(HerdrClient):
@@ -751,6 +790,35 @@ class WorkerPoolTests(unittest.TestCase):
         recovered = pool.prepare("contract-a", "/tmp/project", 3)
         self.assertEqual(recovered["action"], "recovered")
         self.assertTrue(any(worker["slot"] == "P3" for worker in recovered["workers"]))
+
+    def test_partial_initial_start_quarantines_late_live_agents_by_pane_before_retry(self):
+        client = PartialStartClient()
+        pool = self.pool(client)
+
+        with self.assertRaisesRegex(PoolError, "agent_pane_busy"):
+            pool.prepare("contract-a", "/tmp/project", 3)
+
+        self.assertFalse(self.state_path.exists())
+        self.assertEqual(
+            [call for call in client.calls if call[0] == "quarantine"],
+            [
+                ("quarantine", "w6:p3", "p2_worker_ready"),
+                ("quarantine", "w6:p4", "p3_worker_ready"),
+            ],
+        )
+        self.assertEqual(
+            [agent["name"] for agent in client.agents],
+            ["orphan_p2_worker_ready", "orphan_p3_worker_ready"],
+        )
+        self.assertNotIn(("quarantine", "w6:p5", "p4_worker_ready"), client.calls)
+
+        retry = pool.prepare("contract-a", "/tmp/project", 3)
+
+        self.assertEqual(retry["action"], "created")
+        self.assertEqual(
+            [worker["name"] for worker in retry["workers"]],
+            ["p2_worker_ready", "p3_worker_ready", "p4_worker_ready"],
+        )
 
 
 if __name__ == "__main__":
