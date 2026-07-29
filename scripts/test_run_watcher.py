@@ -74,6 +74,7 @@ def live_agent(name: str, pane: str, session: str, status: str = "done") -> dict
     return {
         "name": name,
         "pane_id": pane,
+        "workspace_id": pane.split(":", 1)[0],
         "agent_status": status,
         "agent_session": {"value": session},
     }
@@ -120,14 +121,41 @@ class RunWatcherTests(unittest.TestCase):
     def test_appends_move_event_without_rebinding_control_state(self):
         events = reconcile_once(
             self.state_path,
-            live_agents=[live_agent("hdr_p2", "w9:p8", "s-a")],
+            live_agents=[live_agent("hdr_p2", "w1:p8", "s-a")],
         )
 
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual(state["lanes"]["lane-a"]["pane_id"], "w1:p2")
         self.assertEqual(events[0]["type"], "LANE_MOVED")
         self.assertEqual(events[0]["previous_pane_id"], "w1:p2")
-        self.assertEqual(events[0]["pane_id"], "w9:p8")
+        self.assertEqual(events[0]["pane_id"], "w1:p8")
+
+    def test_moved_out_session_becomes_lost_not_moved(self):
+        first = reconcile_once(
+            self.state_path,
+            live_agents=[
+                live_agent("hdr_p2", "w2:p8", "s-a"),
+                live_agent("hdr_p3", "w1:p3", "s-b"),
+            ],
+            missing_checks=2,
+        )
+        second = reconcile_once(
+            self.state_path,
+            live_agents=[
+                live_agent("hdr_p2", "w2:p8", "s-a"),
+                live_agent("hdr_p3", "w1:p3", "s-b"),
+            ],
+            missing_checks=2,
+        )
+
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(first, [])
+        self.assertEqual([event["type"] for event in second], ["LANE_LOST"])
+        self.assertEqual(second[0]["reason"], "workspace_mismatch")
+        self.assertEqual(second[0]["pane_id"], "w1:p2")
+        self.assertEqual(second[0]["observed_pane_id"], "w2:p8")
+        self.assertEqual(state["lanes"]["lane-a"]["pane_id"], "w1:p2")
+        self.assertEqual(state["lanes"]["lane-a"]["state"], "SUPERSEDED")
 
     def test_appends_loss_event_after_bounded_missing_checks(self):
         first = reconcile_once(

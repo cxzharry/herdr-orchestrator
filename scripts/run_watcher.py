@@ -193,6 +193,16 @@ def reconcile_once(
                     "session_id": lost["session_id"],
                     "pane_id": lost["pane_id"],
                     "reason": lost["reason"],
+                    **{
+                        key: lost[key]
+                        for key in (
+                            "expected_workspace_id",
+                            "observed_workspace_id",
+                            "observed_pane_id",
+                            "observed_agent_name",
+                        )
+                        if key in lost
+                    },
                 }
             )
         return current_events
