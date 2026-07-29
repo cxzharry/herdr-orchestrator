@@ -1,0 +1,55 @@
+{
+  "schema_version": "herdr-readme-benchmark/v1",
+  "recorded_date": "2026-07-28",
+  "herdr_version": "0.7.5",
+  "scenario": {
+    "name": "three-disjoint-low-risk-edits",
+    "inputs": "same root commit and three disjoint one-line edits",
+    "acceptance": "same deterministic verify.py check",
+    "trials_per_mode": 1
+  },
+  "trials": [
+    {
+      "mode": "superpowers-parent-subagents",
+      "wall_clock_seconds": 152,
+      "verified": true,
+      "scope_clean": true,
+      "rework_loops": 0
+    },
+    {
+      "mode": "herdr-standard-cold",
+      "wall_clock_seconds": 761,
+      "verified": true,
+      "scope_clean": true,
+      "rework_loops": 2
+    },
+    {
+      "mode": "herdr-compact-cold",
+      "wall_clock_seconds": 299,
+      "verified": true,
+      "scope_clean": true,
+      "rework_loops": 2
+    },
+    {
+      "mode": "herdr-compact-warm-pool",
+      "wall_clock_seconds": 112,
+      "verified": true,
+      "scope_clean": true,
+      "rework_loops": 0,
+      "global_restarts": 0,
+      "direct_lane_control_preserved": true
+    }
+  ],
+  "comparison": {
+    "warm_vs_superpowers_wall_clock_ratio": 0.74,
+    "warm_wall_clock_reduction_percent": 26.3,
+    "quality_regression": false,
+    "speed_improved": true,
+    "total_token_improved": null
+  },
+  "limitations": [
+    "Local single-trial result",
+    "Original benchmark workspace and machine profile are not published",
+    "Baseline child-session token usage was unavailable"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "herdr-readme-benchmark/v1",
+  "recorded_date": "2026-07-28",
+  "herdr_version": "0.7.5",
+  "scenario": {
+    "name": "multi-module-canary-deployment",
+    "base_sha": "405cf96fd675c607768dafec8ede1aeae5725359",
+    "inputs": "Implement a canary dataset promotion across schema, quality, provenance, integration, CLI, tests, fixtures, and deployment evidence under disjoint path ownership",
+    "acceptance": "shared canary acceptance plus a separate locked deep-immutability probe",
+    "trials_per_mode": 1
+  },
+  "superpowers": {
+    "architecture": "parent with task subagents",
+    "wall_clock_seconds": 1009,
+    "rework_loops": "not_recorded",
+    "shared_acceptance": "pass",
+    "deep_immutability_probe": "fail"
+  },
+  "herdr_orchestrator": {
+    "architecture": "warm P2-P4 lanes plus on-demand P5-P6",
+    "wall_clock_seconds": 841,
+    "rework_loops": 2,
+    "rework_detail": "quality lane generation 2 plus one integration compatibility correction",
+    "shared_acceptance": "pass",
+    "deep_immutability_probe": "pass"
+  },
+  "comparison": {
+    "seconds_saved": 168,
+    "wall_clock_reduction_percent": 16.65,
+    "quality_improved_on_locked_probe": true
+  },
+  "limitations": [
+    "Local single-trial result",
+    "Original benchmark workspace and machine profile are not published"
+  ]
+}
