@@ -12,7 +12,10 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Callable
 
-from scripts.agent_naming import format_agent_name
+try:
+    from scripts.agent_naming import format_agent_name
+except ModuleNotFoundError:
+    from agent_naming import format_agent_name
 
 
 class RegistryError(RuntimeError):
