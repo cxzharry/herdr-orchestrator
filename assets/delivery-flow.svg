@@ -96,6 +96,7 @@
 <text font-size="28" fill="#f1f3f5" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="42.0">PERSISTENT P1 CONTROL PLANE / P2-P9 DELIVERY PLANE</tspan></text>
 <text font-size="16" fill="#adb5bd" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="98.0">INBOX -> SCHEDULER TICK -> OWNERSHIP QUEUE -> RUN WATCHER -> ASYNC SIGNAL</tspan></text>
 <text font-size="13" fill="#adb5bd" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="150.0">GREEN = CONTROL PLANE   WHITE = DELIVERY PLANE   VIOLET BADGE = SECOND ROLE, SAME PANE</tspan></text>
+<text font-size="13" fill="#adb5bd" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="176.0">LIVE NAME = p{slot}_{role}_{task} · STATUS STAYS IN HERDR</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="40" y="255.0">1  INBOX + CONTRACT</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="1555" y="190.0">2  SCHEDULER + OWNERSHIP</tspan></text>
 <text font-size="18" fill="#74c0fc" text-anchor="start" dominant-baseline="middle"><tspan x="2250" y="155.0">3  VERIFY + DEPLOY</tspan></text>

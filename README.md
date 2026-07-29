@@ -37,11 +37,20 @@ It adds:
 - conditional review gates instead of always starting all nine roles;
 - recovery when P1 changes workspace or a worker pane moves or closes;
 - socket-scoped, locked pool state so concurrent controllers cannot overwrite
-  worker identity.
+  worker identity;
+- role/task live names such as `p1_orchestrator`, `p2_impl_auth`,
+  `p5_integration_owner`, `p5_deploy_local`, `p6_integration_review`,
+  `p7_qc_rbac`, `p8_ui_review`, and `p9_persona_admin`.
 
 P1 is a persistent controller only. P1 never implements, tests, integrates,
 reviews, commits, pushes, or deploys. Product checks and delivery mutations
 belong to workers, the Compact verifier, P5, and applicable P6-P9 reviewers.
+Each chat owns a controller scope. Multiple spaces may share one Herdr socket
+and still run same-numbered logical slots because live names follow
+`p{slot}_{role}_{task}` with deterministic suffixes when needed. Legacy
+`hdr_pN` panes migrate on the first scheduler tick without changing session,
+lane generation, receipts, or ownership. After compaction, P1 runs the
+deterministic next-action helper before routing more work.
 
 Every Codex worker created by the current runtime is launched with native
 `--yolo`. Use this only in repositories and environments where bypassing
@@ -122,8 +131,7 @@ The same small benchmark also measured why routing matters:
 
 Cross-workspace recovery was also exercised for pool adoption, moved-pane
 rebinding, closed-worker replacement, and delayed first-session binding. The
-current repository has 81 script tests; 22 of them are the focused worker-pool
-suite.
+full discovery command above runs the complete script test suite.
 
 Inspectable result snapshots:
 
@@ -284,8 +292,7 @@ P2-P9. P2-P4 are retained as the warm pool. P5-P9 are started only when
 applicable. No agent pane is auto-closed; close panes manually if you no longer
 want them.
 
-The full discovery command above currently runs 81 script tests. The focused installed
-worker-pool suite runs 22:
+The focused installed worker-pool suite runs 22:
 
 ```bash
 python3 -m unittest scripts.test_manage_worker_pool -v
@@ -409,9 +416,15 @@ The agent running this skill should follow this sequence:
 6. Start every new Codex worker with `--yolo` and the rostered model/effort.
 7. Dispatch only dependency-ready logical lanes with one bounded capsule each.
 8. Accept terminal receipts and fresh evidence summaries, not chat summaries.
-9. Dispatch only applicable integration, review, QC, design, persona, and
+9. Before each lane prompt, reserve, rename, and verify the live
+   `p{slot}_{role}_{task}` name; repair `LANE_NAME_DRIFT` before the next
+   prompt.
+10. Dispatch only applicable integration, review, QC, design, persona, and
    deployment gates to P5-P9.
-10. Report accepted identities, evidence, blockers, and the next transition;
+11. Standard single-worker flow is P2 implementation -> fresh P5 Integration
+   Owner -> P5 smoke plus P6 Integration Reviewer -> deploy or local runtime ->
+   applicable P7/P8/P9.
+12. Report accepted identities, evidence, blockers, and the next transition;
     do not reopen planning.
 
 Use the canonical path-aware invocation in

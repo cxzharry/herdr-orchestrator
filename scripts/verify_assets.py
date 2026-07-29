@@ -20,8 +20,8 @@ REQUIRED_FILES = {
     "delivery-flow.svg",
 }
 CANONICAL_SOURCE_HASHES = {
-    "delivery-flow.excalidraw": "5588b11b39769c94bdadb8be7ac4728c41e8943ad7673e9d14358de93bf6a117",
-    "delivery-flow.svg": "8ec43a5240875faaf3fec45def10c9567ce793c11d3a675f2758781ac5671633",
+    "delivery-flow.excalidraw": "7169472156c7acbaf6d8a9818f7622f0e8500c3b91a28def9eedda16ee724a41",
+    "delivery-flow.svg": "c28ad583102f0206a884f9039fcee994d38594ae7444476fc95ba25625eb3054",
 }
 PANE_IDS = (
     "orchestrator",
@@ -189,6 +189,10 @@ EXPECTED_TEXTS = {
     "title": "PERSISTENT P1 CONTROL PLANE / P2-P9 DELIVERY PLANE",
     "subtitle": "INBOX -> SCHEDULER TICK -> OWNERSHIP QUEUE -> RUN WATCHER -> ASYNC SIGNAL",
     "legend": "GREEN = CONTROL PLANE   WHITE = DELIVERY PLANE   VIOLET BADGE = SECOND ROLE, SAME PANE",
+    "live_name_legend": (
+        "LIVE NAME = p{slot}_{role}_{task} · "
+        "STATUS STAYS IN HERDR"
+    ),
     "phase_1": "1  INBOX + CONTRACT",
     "phase_2": "2  SCHEDULER + OWNERSHIP",
     "phase_3": "3  VERIFY + DEPLOY",

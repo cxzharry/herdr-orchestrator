@@ -16,9 +16,12 @@ Add a `## Herdr Delivery Contract` section to the plan. It must lock:
 - deployment topology, blocking severity, review matrices, and required
   evidence.
 
-The plan describes logical capacity, not live runtime identity. Never record an
+The plan describes logical capacity, not live runtime identity. `display_slug`
+is approved logical metadata for a readable live name. Never record an
 `agent_name`, `pane_id`, `session_id`, or `lease_id` in the approved plan.
-Those values can change after reuse, reset, move, close, or recovery.
+Also forbid `expected_agent_name`, `dispatch_agent_name`, and
+`controller_scope`. Those values can change after reuse, reset, move, close, or
+recovery.
 
 Use this minimal shape:
 
@@ -28,6 +31,8 @@ herdr_delivery:
   lanes:
     - lane_id: frontend
       role: implementation
+      display_role: impl
+      display_slug: checkout
       eligible_slots: [P2, P3, P4]
       owned_paths: [app/**, components/**]
       prerequisites: []
