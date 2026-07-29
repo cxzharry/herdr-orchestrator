@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.await_receipts import LaneLostError, ReceiptWaitError, await_lanes
+from scripts.await_receipts import (
+    LaneLostError,
+    ReceiptWaitError,
+    await_lanes,
+    reconcile_once,
+)
 
 
 def lane_state(receipt_path: Path) -> dict:
@@ -163,6 +168,23 @@ class AwaitReceiptsTests(unittest.TestCase):
         )
 
         self.assertEqual(result["lanes"], {"schema": "PASS"})
+
+    def test_reconcile_once_reports_observations_without_waiting_or_rebinding(self):
+        result = reconcile_once(
+            self.state_path,
+            ["schema"],
+            live_agents=[
+                {
+                    "name": "hdr_p2",
+                    "pane_id": "w9:p8",
+                    "agent_session": {"value": "session-1"},
+                }
+            ],
+        )
+
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(result["moved"]["schema"]["pane_id"], "w9:p8")
+        self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p2")
 
 
 if __name__ == "__main__":
