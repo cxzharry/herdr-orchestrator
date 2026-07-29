@@ -21,7 +21,10 @@ def lane_state(receipt_path: Path) -> dict:
                 "lane_id": "schema",
                 "generation": 1,
                 "role": "worker",
-                "agent_name": "hdr_p2",
+                "agent_name": "p2_impl_schema",
+                "expected_agent_name": "p2_impl_schema",
+                "dispatch_agent_name": "hdr_p2",
+                "slot": "P2",
                 "pane_id": "w1:p2",
                 "session_id": "session-1",
                 "input_identity": {"base_sha": "abc"},
@@ -185,6 +188,29 @@ class AwaitReceiptsTests(unittest.TestCase):
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual(result["moved"]["schema"]["pane_id"], "w9:p8")
         self.assertEqual(state["lanes"]["schema"]["pane_id"], "w1:p2")
+
+    def test_reconcile_once_reports_name_drift_separately_from_move(self):
+        result = reconcile_once(
+            self.state_path,
+            ["schema"],
+            live_agents=[
+                {
+                    "name": "p2_worker_ready",
+                    "pane_id": "w1:p2",
+                    "agent_session": {"value": "session-1"},
+                }
+            ],
+        )
+
+        self.assertEqual(
+            result["name_drift"]["schema"],
+            {
+                "expected_agent_name": "p2_impl_schema",
+                "agent_name": "p2_worker_ready",
+                "pane_id": "w1:p2",
+                "session_id": "session-1",
+            },
+        )
 
 
 if __name__ == "__main__":

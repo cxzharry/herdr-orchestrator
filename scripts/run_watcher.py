@@ -6,17 +6,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
 
 try:
     from scripts.await_receipts import reconcile_once as receipt_reconcile_once
+    from scripts.scheduler_state import atomic_update, read_state
 except ModuleNotFoundError:
     from await_receipts import reconcile_once as receipt_reconcile_once
+    from scheduler_state import atomic_update, read_state
 
 
 TERMINAL_EVENT_TYPES = {"RECEIPT", "LANE_LOST"}
@@ -68,23 +68,7 @@ class HerdrAdapter:
 
 
 def _read_state(state_path: Path) -> dict[str, Any]:
-    return json.loads(state_path.read_text(encoding="utf-8"))
-
-
-def _write_state(state_path: Path, state: dict[str, Any]) -> None:
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{state_path.name}.",
-        dir=state_path.parent,
-        text=True,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(state, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        os.replace(temporary, state_path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    return read_state(state_path)
 
 
 def _event_id(state: dict[str, Any], event: dict[str, Any]) -> str:
@@ -106,21 +90,21 @@ def _event_id(state: dict[str, Any], event: dict[str, Any]) -> str:
 def _append_events(state_path: Path, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not events:
         return []
-    state = _read_state(state_path)
-    queued = state.setdefault("watcher_events", [])
-    seen = {event.get("event_id") for event in queued}
-    appended = []
-    for event in events:
-        value = dict(event)
-        value["event_id"] = _event_id(state, value)
-        if value["event_id"] in seen:
-            continue
-        queued.append(value)
-        seen.add(value["event_id"])
-        appended.append(value)
-    if appended:
-        _write_state(state_path, state)
-    return appended
+    def mutate(state: dict[str, Any]) -> list[dict[str, Any]]:
+        queued = state.setdefault("watcher_events", [])
+        seen = {event.get("event_id") for event in queued}
+        appended = []
+        for event in events:
+            value = dict(event)
+            value["event_id"] = _event_id(state, value)
+            if value["event_id"] in seen:
+                continue
+            queued.append(value)
+            seen.add(value["event_id"])
+            appended.append(value)
+        return appended
+
+    return atomic_update(state_path, mutate)
 
 
 def reconcile_once(
@@ -133,12 +117,10 @@ def reconcile_once(
     state = _read_state(state_path)
     lanes = state.get("lanes", {})
     observations = receipt_reconcile_once(state_path, list(lanes), live_agents)
-    missing_counts = state.setdefault("watcher_missing_counts", {})
     events: list[dict[str, Any]] = []
 
     for lane_id, status in sorted(observations["terminal"].items()):
         lane = lanes[lane_id]
-        missing_counts.pop(lane_id, None)
         events.append(
             {
                 "type": "RECEIPT",
@@ -153,7 +135,6 @@ def reconcile_once(
 
     for lane_id, moved in sorted(observations["moved"].items()):
         lane = lanes[lane_id]
-        missing_counts.pop(lane_id, None)
         events.append(
             {
                 "type": "LANE_MOVED",
@@ -166,28 +147,57 @@ def reconcile_once(
             }
         )
 
-    live_or_terminal = set(observations["terminal"]) | set(observations["moved"])
-    for lane_id in sorted(set(lanes) - set(observations["missing"]) - live_or_terminal):
-        missing_counts.pop(lane_id, None)
-
-    for lane_id, lost in sorted(observations["missing"].items()):
-        count = int(missing_counts.get(lane_id, 0)) + 1
-        missing_counts[lane_id] = count
-        if count < missing_checks:
-            continue
+    for lane_id, drift in sorted(observations["name_drift"].items()):
+        lane = lanes[lane_id]
         events.append(
             {
-                "type": "LANE_LOST",
+                "type": "LANE_NAME_DRIFT",
                 "contract_id": state["contract_id"],
                 "lane_id": lane_id,
-                "generation": lost["generation"],
-                "session_id": lost["session_id"],
-                "pane_id": lost["pane_id"],
-                "reason": lost["reason"],
+                "generation": lane["generation"],
+                "session_id": drift["session_id"],
+                "pane_id": drift["pane_id"],
+                "agent_name": drift["agent_name"],
+                "expected_agent_name": drift["expected_agent_name"],
             }
         )
 
-    _write_state(state_path, state)
+    live_or_terminal = (
+        set(observations["terminal"])
+        | set(observations["moved"])
+        | set(observations["name_drift"])
+    )
+
+    def update_missing_counts(value: dict[str, Any]) -> list[dict[str, Any]]:
+        current_events: list[dict[str, Any]] = []
+        counts = value.setdefault("watcher_missing_counts", {})
+        current_lanes = value.get("lanes", {})
+        for lane_id in sorted(set(current_lanes) - set(observations["missing"]) - live_or_terminal):
+            counts.pop(lane_id, None)
+        for lane_id in set(observations["terminal"]) | set(observations["moved"]) | set(observations["name_drift"]):
+            counts.pop(lane_id, None)
+        for lane_id, lost in sorted(observations["missing"].items()):
+            count = int(counts.get(lane_id, 0)) + 1
+            counts[lane_id] = count
+            if count < missing_checks:
+                continue
+            lane = current_lanes.get(lane_id, {})
+            if lane.get("generation") == lost["generation"]:
+                lane["state"] = "SUPERSEDED"
+            current_events.append(
+                {
+                    "type": "LANE_LOST",
+                    "contract_id": value["contract_id"],
+                    "lane_id": lane_id,
+                    "generation": lost["generation"],
+                    "session_id": lost["session_id"],
+                    "pane_id": lost["pane_id"],
+                    "reason": lost["reason"],
+                }
+            )
+        return current_events
+
+    events.extend(atomic_update(state_path, update_missing_counts))
     return _append_events(state_path, events)
 
 
