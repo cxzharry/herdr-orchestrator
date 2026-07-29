@@ -8,12 +8,18 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import subprocess
 import time
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+
+try:
+    from scripts.agent_naming import format_agent_name
+except ModuleNotFoundError:
+    from agent_naming import format_agent_name
 
 
 SETTLED_STATUSES = {"idle", "done"}
@@ -28,6 +34,64 @@ def optional_session_id(agent: dict[str, Any]) -> str | None:
     session = agent.get("agent_session") or {}
     value = session.get("value")
     return str(value) if value else None
+
+
+def validate_controller_scope(value: str) -> str:
+    scope = str(value)
+    if not re.fullmatch(r"[a-f0-9]{4,32}", scope):
+        raise PoolError("controller scope must be lowercase hex")
+    return scope
+
+
+def ready_name(slot: str, controller_scope: str, occupied: set[str]) -> str:
+    return format_agent_name(
+        slot,
+        "worker",
+        "ready",
+        occupied=occupied,
+        collision_key=f"{controller_scope}:{slot}",
+    )
+
+
+def live_agent_for_worker(
+    worker: dict[str, Any],
+    agents: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    expected_session = worker.get("session_id")
+    if expected_session:
+        matches = [
+            agent
+            for agent in agents
+            if optional_session_id(agent) == expected_session
+        ]
+        if len(matches) > 1:
+            raise PoolError(f"{worker['slot']} session is not unique")
+        if matches:
+            return matches[0]
+    matches = [
+        agent
+        for agent in agents
+        if agent.get("name") == worker.get("name")
+    ]
+    if len(matches) > 1:
+        raise PoolError(f"{worker['slot']} has multiple live agents")
+    return matches[0] if matches else None
+
+
+def verified_agent_by_session(
+    agents: list[dict[str, Any]],
+    session_id: str | None,
+    expected_name: str,
+) -> dict[str, Any]:
+    matches = [
+        agent
+        for agent in agents
+        if optional_session_id(agent) == session_id
+        and agent.get("name") == expected_name
+    ]
+    if len(matches) != 1:
+        raise PoolError("worker rename was not verified")
+    return matches[0]
 
 
 class JsonState:
@@ -90,11 +154,13 @@ class WorkerPool:
         state_path: Path,
         workspace_id: str,
         anchor_pane_id: str,
+        controller_scope: str,
     ):
         self.client = client
         self.state = JsonState(state_path)
         self.workspace_id = workspace_id
         self.anchor_pane_id = anchor_pane_id
+        self.controller_scope = validate_controller_scope(controller_scope)
         self.herdr_session_key = current_herdr_session_key()
 
     def prepare(self, contract_id: str, cwd: str, count: int = 3) -> dict[str, Any]:
@@ -106,10 +172,10 @@ class WorkerPool:
             raise PoolError("worker count must be between 1 and 3")
         root = str(Path(cwd).resolve())
         current = self.state.load()
-        live = {agent.get("name"): agent for agent in self.client.list_agents()}
+        live = self.client.list_agents()
 
         if current:
-            state_changed = self._validate_session_scope(current)
+            state_changed = self._validate_state_scope(current)
             if current["contract_id"] == contract_id and current["root"] != root:
                 raise PoolError("same contract cannot change root")
             same_contract = current["contract_id"] == contract_id
@@ -118,14 +184,16 @@ class WorkerPool:
                 live,
                 allow_busy=same_contract,
             )
-            current_names = {worker["name"] for worker in current["workers"]}
+            current_slots = {worker["slot"] for worker in current["workers"]}
+            occupied = {agent.get("name") for agent in live if agent.get("name")}
             for slot in SLOTS[:count]:
-                name = f"hdr_{slot.lower()}"
-                if name in current_names:
+                if slot in current_slots:
                     continue
-                if name in live:
+                name = ready_name(slot, self.controller_scope, occupied)
+                if name in occupied:
                     raise PoolError(f"refusing unowned live agent name: {name}")
                 missing.append({"slot": slot, "name": name})
+                occupied.add(name)
             if missing:
                 self._recover_missing(current, missing, root)
             if same_contract:
@@ -165,18 +233,27 @@ class WorkerPool:
                     worker.pop("previous_session_id", None)
                 else:
                     worker["input_ready"] = True
+                occupied = {
+                    agent.get("name")
+                    for agent in self.client.list_agents()
+                    if agent.get("name") and optional_session_id(agent) != worker.get("session_id")
+                }
+                expected = ready_name(worker["slot"], self.controller_scope, occupied)
+                if worker["name"] != expected:
+                    self.client.rename_agent(worker["name"], expected)
+                    worker["name"] = expected
             current["contract_id"] = contract_id
             current["root"] = root
             self.state.save(current)
             return self._result("reset", current)
 
         slots = SLOTS[:count]
-        names = [f"hdr_{slot.lower()}" for slot in slots]
-        collisions = sorted(name for name in names if name in live)
-        if collisions:
-            raise PoolError(
-                "refusing unowned live agent name(s): " + ", ".join(collisions)
-            )
+        occupied = {agent.get("name") for agent in live if agent.get("name")}
+        names = []
+        for slot in slots:
+            name = ready_name(slot, self.controller_scope, occupied)
+            names.append(name)
+            occupied.add(name)
 
         panes = self.client.create_panes(count, root)
         requested = [
@@ -204,8 +281,9 @@ class WorkerPool:
             )
 
         value = {
-            "schema_version": "herdr-worker-pool/v1",
+            "schema_version": "herdr-worker-pool/v2",
             "herdr_session_key": self.herdr_session_key,
+            "controller_scope": self.controller_scope,
             "workspace_id": self.workspace_id,
             "anchor_pane_id": self.anchor_pane_id,
             "contract_id": contract_id,
@@ -229,21 +307,20 @@ class WorkerPool:
         current = self.state.load()
         if not current:
             raise PoolError("worker pool is not prepared")
-        self._validate_session_scope(current)
+        self._validate_state_scope(current)
         if current["contract_id"] != contract_id:
             raise PoolError("contract mismatch")
 
         deadline = time.monotonic() + wait_seconds
         while True:
-            live = {
-                agent.get("name"): agent
-                for agent in self.client.list_agents()
-            }
+            live = self.client.list_agents()
             pending = []
             for worker in current["workers"]:
-                agent = live.get(worker["name"])
+                agent = live_agent_for_worker(worker, live)
                 if not agent:
                     raise PoolError(f"{worker['name']} is no longer live")
+                if agent.get("name") != worker.get("name"):
+                    worker["name"] = agent.get("name")
                 new_session = optional_session_id(agent)
                 self._validate_pending_terminal(worker, agent)
                 if agent.get("pane_id") != worker["pane_id"]:
@@ -280,17 +357,20 @@ class WorkerPool:
     def _reconcile_state(
         self,
         current: dict[str, Any],
-        live: dict[str, dict[str, Any]],
+        live: list[dict[str, Any]],
         allow_busy: bool,
     ) -> tuple[bool, list[dict[str, Any]], bool]:
         rebound = False
         missing = []
         busy = False
         for worker in current.get("workers", []):
-            agent = live.get(worker["name"])
+            agent = live_agent_for_worker(worker, live)
             if not agent:
                 missing.append(worker)
                 continue
+            if agent.get("name") != worker.get("name"):
+                worker["name"] = agent.get("name")
+                rebound = True
             if worker.get("recovery_pending"):
                 if agent.get("pane_id") != worker.get("pane_id"):
                     raise PoolError(
@@ -315,6 +395,22 @@ class WorkerPool:
                 worker["workspace_id"] = agent.get("workspace_id")
                 rebound = True
             status = agent.get("agent_status")
+            if agent.get("name", "").startswith("hdr_p"):
+                occupied = {
+                    item.get("name")
+                    for item in self.client.list_agents()
+                    if item.get("name")
+                    and optional_session_id(item) != worker.get("session_id")
+                }
+                expected = ready_name(worker["slot"], self.controller_scope, occupied)
+                self.client.rename_agent(agent["pane_id"], expected)
+                agent = verified_agent_by_session(
+                    self.client.list_agents(),
+                    worker["session_id"],
+                    expected,
+                )
+                worker["name"] = agent["name"]
+                rebound = True
             if status not in SETTLED_STATUSES:
                 if not allow_busy:
                     raise PoolError(
@@ -411,22 +507,39 @@ class WorkerPool:
         current: dict[str, Any],
         replacements: dict[str, dict[str, Any]],
     ) -> None:
-        workers_by_name = {
-            worker["name"]: worker for worker in current["workers"]
+        workers_by_slot = {
+            worker["slot"]: worker for worker in current["workers"]
         }
-        workers_by_name.update(replacements)
+        for worker in replacements.values():
+            workers_by_slot[worker["slot"]] = worker
         current["workers"] = [
-            workers_by_name[f"hdr_{slot.lower()}"]
+            workers_by_slot[slot]
             for slot in SLOTS
-            if f"hdr_{slot.lower()}" in workers_by_name
+            if slot in workers_by_slot
         ]
 
-    def _validate_session_scope(self, current: dict[str, Any]) -> bool:
+    def _validate_state_scope(self, current: dict[str, Any]) -> bool:
+        schema = current.get("schema_version")
+        if schema not in {"herdr-worker-pool/v1", "herdr-worker-pool/v2"}:
+            raise PoolError("unsupported worker pool schema_version")
+        stored_scope = current.get("controller_scope")
+        if stored_scope and stored_scope != self.controller_scope:
+            raise PoolError("controller scope mismatch")
+        changed = False
+        if not stored_scope:
+            current["controller_scope"] = self.controller_scope
+            changed = True
+        if schema != "herdr-worker-pool/v2":
+            current["schema_version"] = "herdr-worker-pool/v2"
+            changed = True
         stored = current.get("herdr_session_key")
+        if stored == "unspecified":
+            current["herdr_session_key"] = self.herdr_session_key
+            return True
         if stored and stored != self.herdr_session_key:
             raise PoolError("Herdr session mismatch")
         if stored:
-            return False
+            return changed
         current["herdr_session_key"] = self.herdr_session_key
         return True
 
@@ -666,19 +779,26 @@ class HerdrClient:
         orphan = f"orphan_{name.removeprefix('hdr_')}_{suffix}"
         self._run(["agent", "rename", name, orphan])
 
+    def rename_agent(self, target: str, name: str) -> None:
+        self._run(["agent", "rename", target, name])
+
 
 def current_herdr_session_key() -> str:
     socket_path = os.environ.get("HERDR_SOCKET_PATH", "unspecified")
     return hashlib.sha256(socket_path.encode()).hexdigest()[:12]
 
 
-def default_state_path(workspace_id: str) -> Path:
+def default_state_path(
+    workspace_id: str,
+    controller_scope: str,
+    *,
+    root: Path | None = None,
+) -> Path:
     del workspace_id
+    scope = validate_controller_scope(controller_scope)
     return (
-        Path.home()
-        / ".codex"
-        / "herdr-pools"
-        / f"active-{current_herdr_session_key()}.json"
+        (root or Path.home() / ".codex" / "herdr-pools")
+        / f"active-{current_herdr_session_key()}-{scope}.json"
     )
 
 
@@ -687,6 +807,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-file", type=Path)
     parser.add_argument("--workspace", default=os.environ.get("HERDR_WORKSPACE_ID"))
     parser.add_argument("--anchor-pane", default=os.environ.get("HERDR_PANE_ID"))
+    parser.add_argument("--controller-scope", required=True)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare")
@@ -706,12 +827,16 @@ def main() -> int:
         raise SystemExit("HERDR_ENV=1 is required")
     if not args.workspace or not args.anchor_pane:
         raise SystemExit("Herdr workspace and anchor pane are required")
-    state_path = args.state_file or default_state_path(args.workspace)
+    state_path = args.state_file or default_state_path(
+        args.workspace,
+        args.controller_scope,
+    )
     pool = WorkerPool(
         client=HerdrClient(args.anchor_pane),
         state_path=state_path,
         workspace_id=args.workspace,
         anchor_pane_id=args.anchor_pane,
+        controller_scope=args.controller_scope,
     )
     try:
         if args.command == "prepare":
