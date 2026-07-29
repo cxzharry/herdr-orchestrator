@@ -167,14 +167,8 @@ def request_id_identity(envelope: dict[str, Any]) -> dict[str, Any]:
 
 def immutable_agent_identity(identity: dict[str, Any]) -> dict[str, Any]:
     return {
-        key: identity.get(key)
-        for key in (
-            "name",
-            "pane_id",
-            "workspace_id",
-            "terminal_id",
-            "session_id",
-        )
+        "name": identity.get("name"),
+        "session_id": identity.get("session_id"),
     }
 
 

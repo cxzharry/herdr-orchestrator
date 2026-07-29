@@ -191,6 +191,34 @@ class ControllerRouterTests(unittest.TestCase):
         self.assertNotEqual(first["request_id"], different_request["request_id"])
         self.assertNotEqual(first["request_id"], different_source["request_id"])
 
+    def test_request_id_ignores_controller_and_worker_location_moves(self):
+        request = {"text": "same user delta", "paths": ["scripts/controller_router.py"]}
+        first_router = ControllerRouter(
+            client=FakeClient([]),
+            inbox_root=self.root / "first",
+            socket_key="sock-a",
+        )
+        moved_router = ControllerRouter(
+            client=FakeClient([]),
+            inbox_root=self.root / "moved",
+            socket_key="sock-a",
+        )
+        first_worker = agent("hdr_p4", "w1:p4", "session-worker", terminal="term-w")
+        first_controller = agent("hdr_p1", "w1:p1", "session-p1", terminal="term-p1")
+        moved_worker = {
+            **agent("hdr_p4", "w2:p8", "session-worker", terminal="term-w-moved"),
+            "workspace_id": "w2",
+        }
+        moved_controller = {
+            **agent("hdr_p1", "w2:p1", "session-p1", terminal="term-p1-moved"),
+            "workspace_id": "w2",
+        }
+
+        first = first_router.forward_request(first_worker, first_controller, request)
+        moved = moved_router.forward_request(moved_worker, moved_controller, request)
+
+        self.assertEqual(first["request_id"], moved["request_id"])
+
 
 if __name__ == "__main__":
     unittest.main()
