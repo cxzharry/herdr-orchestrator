@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
 import subprocess
 import time
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -27,28 +30,57 @@ def optional_session_id(agent: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
-def session_id(agent: dict[str, Any]) -> str:
-    value = optional_session_id(agent)
-    if value is None:
-        raise PoolError(f"{agent.get('name', 'unknown')} has no live session")
-    return value
-
-
 class JsonState:
     def __init__(self, path: Path):
         self.path = path
+        self._fingerprint: str | None = None
+
+    @contextmanager
+    def locked(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_suffix(self.path.suffix + ".lock")
+        with lock_path.open("a+", encoding="utf-8") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def load(self) -> dict[str, Any] | None:
+        if (
+            not self.path.is_file()
+            and (
+                self.path.name == "active.json"
+                or self.path.name.startswith("active-")
+            )
+        ):
+            legacy = sorted(self.path.parent.glob("w*.json"))
+            if len(legacy) > 1:
+                raise PoolError(
+                    "multiple legacy worker pools found; pass --state-file explicitly"
+                )
+            if legacy:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                legacy[0].replace(self.path)
         if not self.path.is_file():
+            self._fingerprint = None
             return None
-        return json.loads(self.path.read_text(encoding="utf-8"))
+        payload = self.path.read_bytes()
+        self._fingerprint = hashlib.sha256(payload).hexdigest()
+        return json.loads(payload)
 
     def save(self, value: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(value, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        current_fingerprint = None
+        if self.path.is_file():
+            current_fingerprint = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        if current_fingerprint != self._fingerprint:
+            raise PoolError("worker pool state changed concurrently")
+        encoded = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+        temporary = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
+        temporary.write_bytes(encoded)
+        temporary.replace(self.path)
+        self._fingerprint = hashlib.sha256(encoded).hexdigest()
 
 
 class WorkerPool:
@@ -63,8 +95,13 @@ class WorkerPool:
         self.state = JsonState(state_path)
         self.workspace_id = workspace_id
         self.anchor_pane_id = anchor_pane_id
+        self.herdr_session_key = current_herdr_session_key()
 
     def prepare(self, contract_id: str, cwd: str, count: int = 3) -> dict[str, Any]:
+        with self.state.locked():
+            return self._prepare(contract_id, cwd, count)
+
+    def _prepare(self, contract_id: str, cwd: str, count: int) -> dict[str, Any]:
         if count < 1 or count > len(SLOTS):
             raise PoolError("worker count must be between 1 and 3")
         root = str(Path(cwd).resolve())
@@ -72,11 +109,41 @@ class WorkerPool:
         live = {agent.get("name"): agent for agent in self.client.list_agents()}
 
         if current:
-            self._validate_state(current, live)
-            if current["contract_id"] == contract_id:
-                if current["root"] != root:
-                    raise PoolError("same contract cannot change root")
-                return self._result("reused", current)
+            state_changed = self._validate_session_scope(current)
+            if current["contract_id"] == contract_id and current["root"] != root:
+                raise PoolError("same contract cannot change root")
+            same_contract = current["contract_id"] == contract_id
+            rebound, missing, busy = self._reconcile_state(
+                current,
+                live,
+                allow_busy=same_contract,
+            )
+            current_names = {worker["name"] for worker in current["workers"]}
+            for slot in SLOTS[:count]:
+                name = f"hdr_{slot.lower()}"
+                if name in current_names:
+                    continue
+                if name in live:
+                    raise PoolError(f"refusing unowned live agent name: {name}")
+                missing.append({"slot": slot, "name": name})
+            if missing:
+                self._recover_missing(current, missing, root)
+            if same_contract:
+                if missing:
+                    action = "recovered"
+                elif rebound:
+                    action = "rebound"
+                elif busy:
+                    action = "attached"
+                else:
+                    action = "reused"
+                if state_changed or missing or rebound:
+                    self.state.save(current)
+                return self._result(
+                    action,
+                    current,
+                    status="busy" if busy else "ready",
+                )
             previous_sessions = {}
             for worker in current["workers"]:
                 previous_sessions[worker["name"]] = worker["session_id"]
@@ -129,6 +196,8 @@ class WorkerPool:
                 {
                     **request,
                     "session_id": started_session,
+                    "workspace_id": ready[request["name"]].get("workspace_id"),
+                    "terminal_id": ready[request["name"]].get("terminal_id"),
                     "input_ready": True,
                     "rebind_pending": started_session is None,
                 }
@@ -136,6 +205,7 @@ class WorkerPool:
 
         value = {
             "schema_version": "herdr-worker-pool/v1",
+            "herdr_session_key": self.herdr_session_key,
             "workspace_id": self.workspace_id,
             "anchor_pane_id": self.anchor_pane_id,
             "contract_id": contract_id,
@@ -145,48 +215,239 @@ class WorkerPool:
         self.state.save(value)
         return self._result("created", value)
 
-    def bind(self, contract_id: str) -> dict[str, Any]:
+    def bind(
+        self,
+        contract_id: str,
+        wait_seconds: float = 0,
+    ) -> dict[str, Any]:
+        with self.state.locked():
+            return self._bind(contract_id, wait_seconds)
+
+    def _bind(self, contract_id: str, wait_seconds: float) -> dict[str, Any]:
+        if wait_seconds < 0:
+            raise PoolError("bind wait must not be negative")
         current = self.state.load()
         if not current:
             raise PoolError("worker pool is not prepared")
+        self._validate_session_scope(current)
         if current["contract_id"] != contract_id:
             raise PoolError("contract mismatch")
 
-        live = {agent.get("name"): agent for agent in self.client.list_agents()}
-        for worker in current["workers"]:
-            agent = live.get(worker["name"])
-            if not agent or agent.get("pane_id") != worker["pane_id"]:
-                raise PoolError(f"{worker['name']} live identity mismatch")
-            new_session = session_id(agent)
-            if worker.get("rebind_pending"):
-                previous_session = worker.get("previous_session_id")
-                if previous_session and new_session == previous_session:
-                    raise PoolError(f"{worker['name']} session has not changed")
-                worker["session_id"] = new_session
-                worker["rebind_pending"] = False
-                worker.pop("previous_session_id", None)
+        deadline = time.monotonic() + wait_seconds
+        while True:
+            live = {
+                agent.get("name"): agent
+                for agent in self.client.list_agents()
+            }
+            pending = []
+            for worker in current["workers"]:
+                agent = live.get(worker["name"])
+                if not agent:
+                    raise PoolError(f"{worker['name']} is no longer live")
+                new_session = optional_session_id(agent)
+                self._validate_pending_terminal(worker, agent)
+                if agent.get("pane_id") != worker["pane_id"]:
+                    if (
+                        not worker.get("rebind_pending")
+                        and new_session != worker.get("session_id")
+                    ):
+                        raise PoolError(
+                            f"{worker['name']} live identity mismatch"
+                        )
+                    worker["pane_id"] = agent["pane_id"]
+                    worker["workspace_id"] = agent.get("workspace_id")
+                if worker.get("rebind_pending"):
+                    previous_session = worker.get("previous_session_id")
+                    if not new_session or (
+                        previous_session and new_session == previous_session
+                    ):
+                        pending.append(worker["name"])
+                        continue
+                    worker["session_id"] = new_session
+                    worker["rebind_pending"] = False
+                    worker.pop("previous_session_id", None)
+                elif new_session != worker["session_id"]:
+                    raise PoolError(
+                        f"{worker['name']} session identity mismatch"
+                    )
+            if not pending or time.monotonic() >= deadline:
+                break
+            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
 
         self.state.save(current)
-        return self._result("bound", current)
+        return self._result("pending" if pending else "bound", current)
 
-    def _validate_state(
+    def _reconcile_state(
         self,
         current: dict[str, Any],
         live: dict[str, dict[str, Any]],
-    ) -> None:
-        if current.get("workspace_id") != self.workspace_id:
-            raise PoolError("workspace mismatch")
+        allow_busy: bool,
+    ) -> tuple[bool, list[dict[str, Any]], bool]:
+        rebound = False
+        missing = []
+        busy = False
         for worker in current.get("workers", []):
             agent = live.get(worker["name"])
             if not agent:
-                raise PoolError(f"{worker['name']} is no longer live")
+                missing.append(worker)
+                continue
+            if worker.get("recovery_pending"):
+                if agent.get("pane_id") != worker.get("pane_id"):
+                    raise PoolError(
+                        f"{worker['name']} recovery pane identity mismatch"
+                    )
+                worker["session_id"] = optional_session_id(agent)
+                worker["workspace_id"] = agent.get("workspace_id")
+                worker["terminal_id"] = agent.get("terminal_id")
+                worker["input_ready"] = bool(agent.get("interactive_ready"))
+                worker["rebind_pending"] = worker["session_id"] is None
+                worker.pop("recovery_pending", None)
+                rebound = True
+            live_session = optional_session_id(agent)
+            self._validate_pending_terminal(worker, agent)
             if agent.get("pane_id") != worker["pane_id"]:
-                raise PoolError(f"{worker['name']} pane identity mismatch")
+                if (
+                    not worker.get("rebind_pending")
+                    and live_session != worker.get("session_id")
+                ):
+                    raise PoolError(f"{worker['name']} pane identity mismatch")
+                worker["pane_id"] = agent["pane_id"]
+                worker["workspace_id"] = agent.get("workspace_id")
+                rebound = True
             status = agent.get("agent_status")
             if status not in SETTLED_STATUSES:
-                raise PoolError(f"{worker['name']} is {status}; refusing to hijack")
-            if not worker.get("rebind_pending") and session_id(agent) != worker["session_id"]:
+                if not allow_busy:
+                    raise PoolError(
+                        f"{worker['name']} is {status}; refusing to hijack"
+                    )
+                busy = True
+            if worker.get("rebind_pending"):
+                previous_session = worker.get("previous_session_id")
+                if live_session and (
+                    not previous_session or live_session != previous_session
+                ):
+                    worker["session_id"] = live_session
+                    worker["rebind_pending"] = False
+                    worker.pop("previous_session_id", None)
+                    rebound = True
+            elif live_session != worker["session_id"]:
                 raise PoolError(f"{worker['name']} session identity mismatch")
+            if not worker.get("terminal_id") and agent.get("terminal_id"):
+                worker["terminal_id"] = agent["terminal_id"]
+                rebound = True
+        return rebound, missing, busy
+
+    def _recover_missing(
+        self,
+        current: dict[str, Any],
+        missing: list[dict[str, Any]],
+        root: str,
+    ) -> None:
+        panes = self.client.create_panes(len(missing), root)
+        requested = [
+            {
+                "slot": worker["slot"],
+                "name": worker["name"],
+                "pane_id": pane,
+            }
+            for worker, pane in zip(missing, panes)
+        ]
+        reservations = {
+            request["name"]: {
+                **request,
+                "session_id": None,
+                "workspace_id": self.workspace_id,
+                "terminal_id": None,
+                "input_ready": False,
+                "rebind_pending": True,
+                "recovery_pending": True,
+            }
+            for request in requested
+        }
+        self._replace_workers(current, reservations)
+        self.state.save(current)
+
+        try:
+            started = self.client.start_workers(requested)
+            for response in started:
+                self._validate_argv(response.get("argv") or [])
+            ready = {
+                agent["name"]: agent
+                for agent in self.client.ensure_ready(requested)
+            }
+            replacements = {}
+            for request in requested:
+                agent = ready[request["name"]]
+                started_session = optional_session_id(agent)
+                replacements[request["name"]] = {
+                    **request,
+                    "session_id": started_session,
+                    "workspace_id": agent.get("workspace_id"),
+                    "terminal_id": agent.get("terminal_id"),
+                    "input_ready": True,
+                    "rebind_pending": started_session is None,
+                }
+            self._replace_workers(current, replacements)
+            self.state.save(current)
+        except Exception:
+            for request in requested:
+                try:
+                    self.client.quarantine(request["name"])
+                except (PoolError, StopIteration):
+                    pass
+            retry = {
+                request["name"]: {
+                    **reservations[request["name"]],
+                    "pane_id": None,
+                }
+                for request in requested
+            }
+            self._replace_workers(current, retry)
+            self.state.save(current)
+            raise
+
+    @staticmethod
+    def _replace_workers(
+        current: dict[str, Any],
+        replacements: dict[str, dict[str, Any]],
+    ) -> None:
+        workers_by_name = {
+            worker["name"]: worker for worker in current["workers"]
+        }
+        workers_by_name.update(replacements)
+        current["workers"] = [
+            workers_by_name[f"hdr_{slot.lower()}"]
+            for slot in SLOTS
+            if f"hdr_{slot.lower()}" in workers_by_name
+        ]
+
+    def _validate_session_scope(self, current: dict[str, Any]) -> bool:
+        stored = current.get("herdr_session_key")
+        if stored and stored != self.herdr_session_key:
+            raise PoolError("Herdr session mismatch")
+        if stored:
+            return False
+        current["herdr_session_key"] = self.herdr_session_key
+        return True
+
+    @staticmethod
+    def _validate_pending_terminal(
+        worker: dict[str, Any],
+        agent: dict[str, Any],
+    ) -> None:
+        if worker.get("recovery_pending"):
+            raise PoolError(
+                f"{worker['name']} recovery is incomplete; run prepare"
+            )
+        if not worker.get("rebind_pending"):
+            return
+        expected = worker.get("terminal_id")
+        if not expected:
+            raise PoolError(
+                f"{worker['name']} pending terminal identity is unavailable"
+            )
+        if agent.get("terminal_id") != expected:
+            raise PoolError(f"{worker['name']} terminal identity mismatch")
 
     @staticmethod
     def _validate_argv(argv: list[str]) -> None:
@@ -197,9 +458,13 @@ class WorkerPool:
             raise PoolError("worker launch invariant failed: " + ", ".join(missing))
 
     @staticmethod
-    def _result(action: str, value: dict[str, Any]) -> dict[str, Any]:
+    def _result(
+        action: str,
+        value: dict[str, Any],
+        status: str = "ready",
+    ) -> dict[str, Any]:
         return {
-            "status": "ready",
+            "status": status,
             "action": action,
             "contract_id": value["contract_id"],
             "root": value["root"],
@@ -396,9 +661,25 @@ class HerdrClient:
     def reset(self, name: str) -> None:
         self._run(["agent", "prompt", name, "/new"])
 
+    def quarantine(self, name: str) -> None:
+        suffix = f"{time.monotonic_ns():x}"[-8:]
+        orphan = f"orphan_{name.removeprefix('hdr_')}_{suffix}"
+        self._run(["agent", "rename", name, orphan])
+
+
+def current_herdr_session_key() -> str:
+    socket_path = os.environ.get("HERDR_SOCKET_PATH", "unspecified")
+    return hashlib.sha256(socket_path.encode()).hexdigest()[:12]
+
 
 def default_state_path(workspace_id: str) -> Path:
-    return Path.home() / ".codex" / "herdr-pools" / f"{workspace_id}.json"
+    del workspace_id
+    return (
+        Path.home()
+        / ".codex"
+        / "herdr-pools"
+        / f"active-{current_herdr_session_key()}.json"
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -415,6 +696,7 @@ def parse_args() -> argparse.Namespace:
 
     bind = subparsers.add_parser("bind")
     bind.add_argument("--contract-id", required=True)
+    bind.add_argument("--wait-seconds", type=float, default=5.0)
     return parser.parse_args()
 
 
@@ -435,7 +717,7 @@ def main() -> int:
         if args.command == "prepare":
             result = pool.prepare(args.contract_id, args.cwd, args.count)
         else:
-            result = pool.bind(args.contract_id)
+            result = pool.bind(args.contract_id, args.wait_seconds)
     except PoolError as error:
         print(json.dumps({"status": "error", "error": str(error)}, indent=2))
         return 1

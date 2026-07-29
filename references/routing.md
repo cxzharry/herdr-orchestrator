@@ -66,8 +66,14 @@ footer in the pane tail. Use `agent get` and the same tail when launch evidence
 is incomplete. A wrong model, effort, missing `--yolo`, or mismatched identity
 is a failed launch, not a usable lane.
 Before dispatch, confirm the agent has a live session and its pane shows the
-Codex input prompt. If the first submitted prompt does not appear, resend it
-once to the same identity.
+Codex input prompt. The only exception is a newly reserved pool worker whose
+ledger proves the current name, pane, terminal, and `input_ready=true` while
+`rebind_pending=true`: send its first capsule without a session, then run
+`bind` to capture that session. The CLI bind waits up to five seconds for all
+first sessions. If it still returns `action=pending`, the affected lane is not
+leased: observe the session transition and rerun bind before accepting any
+receipt. If the first submitted prompt does not appear, resend it once to the
+same terminal identity.
 
 Disable an external MCP server at launch only when its capability is explicitly
 outside the lane contract, using scoped
@@ -213,12 +219,35 @@ python3 <skill-root>/scripts/manage_worker_pool.py bind --contract-id \
   "$contract_id"
 ```
 
+The default ledger is
+`~/.codex/herdr-pools/active-<socket-key>.json`: global across workspaces in one
+Herdr session, isolated across Herdr sockets. Live `hdr_p2`-`hdr_p4` names are
+session-global. P1's workspace and pane are controller locations, not pool
+ownership. A P1 recreated in another workspace must run `prepare` normally;
+the helper atomically adopts a unique legacy workspace ledger, resolves workers
+by stable name, terminal, and session, and keeps their current panes. Never copy
+a ledger to the new workspace or move healthy workers just to colocate them
+with P1.
+
+`prepare` updates a moved worker's pane when its session is unchanged. It
+recreates only a closed slot and preserves healthy siblings. It still refuses
+busy workers from another contract or a mismatched session; those are active
+ownership conflicts, not recovery cases. For the same contract, stable busy
+workers return `status=busy, action=attached`. Resume tracking their current
+lanes; do not dispatch a second capsule until they settle. The helper locks the
+complete pool transaction, so a second P1 waits instead of overwriting newer
+identity state. Closed-slot recovery records its pane reservation before
+launch. A failed launch is renamed as an orphan without closing its pane; the
+next prepare retries the slot instead of colliding with the partial worker.
+
 After approved-input identity and gate eligibility pass, P1 may start the
 required number of empty P2-P4 agents while it finishes lane-specific
 validation. `status=ready` means startup/trust gates are cleared and every
 worker is at its input prompt; do not repeat pane reads or press Enter. A first
 launch may remain `rebind_pending` until its first capsule creates a session;
-run the compatibility `bind` once immediately after that fan-out.
+dispatch the first capsule before `bind`. An early `bind` returns
+`action=pending` without failing; after fan-out, require `action=bound` before
+leasing the lanes or accepting receipts.
 Warming creates no product prompt and grants no scope. Every
 assignment creates a `lease_id` bound to contract, lane, generation, agent,
 pane, session, exact root/base, and owned paths. One live lease owns one lane;
