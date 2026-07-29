@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -22,6 +23,10 @@ def live_agent(
         "agent_status": status,
         "agent_session": {"value": session},
     }
+
+
+def json_state(value: dict) -> str:
+    return json.dumps(value, indent=2, sort_keys=True) + "\n"
 
 
 class FakeClient:
@@ -67,7 +72,7 @@ class FakeClient:
             agent = live_agent(
                 worker["name"],
                 worker["pane_id"],
-                f"session-{worker['slot'].lower()}",
+                f"session-{worker['name']}",
             )
             if not self.sessions_on_start:
                 agent.pop("agent_session")
@@ -110,6 +115,15 @@ class FakeClient:
     def reset(self, name):
         self.calls.append(("reset", name))
 
+    def rename_agent(self, target, name):
+        self.calls.append(("rename_agent", target, name))
+        agent = next(
+            agent
+            for agent in self.agents
+            if agent["name"] == target or agent["pane_id"] == target
+        )
+        agent["name"] = name
+
     def quarantine(self, name):
         self.calls.append(("quarantine", name))
         agent = next(agent for agent in self.agents if agent["name"] == name)
@@ -130,6 +144,46 @@ class WorkerPoolTests(unittest.TestCase):
             state_path=self.state_path,
             workspace_id="w6",
             anchor_pane_id="w6:p1",
+            controller_scope="aaaaaaaa",
+        )
+
+    def pool_for_scope(self, client, scope):
+        return WorkerPool(
+            client=client,
+            state_path=default_state_path("w6", scope, root=Path(self.tempdir.name)),
+            workspace_id="w6",
+            anchor_pane_id="w6:p1",
+            controller_scope=scope,
+        )
+
+    def write_legacy_pool_state(self, agents):
+        workers = []
+        for slot, agent in zip(("P2", "P3", "P4"), agents):
+            workers.append(
+                {
+                    "slot": slot,
+                    "name": f"hdr_{slot.lower()}",
+                    "pane_id": agent["pane_id"],
+                    "workspace_id": agent["workspace_id"],
+                    "terminal_id": agent["terminal_id"],
+                    "session_id": agent["agent_session"]["value"],
+                    "input_ready": True,
+                    "rebind_pending": False,
+                }
+            )
+        self.state_path.write_text(
+            json_state(
+                {
+                    "schema_version": "herdr-worker-pool/v1",
+                    "herdr_session_key": "unspecified",
+                    "workspace_id": "w6",
+                    "anchor_pane_id": "w6:p1",
+                    "contract_id": "contract-a",
+                    "root": str(Path("/tmp/project").resolve()),
+                    "workers": workers,
+                }
+            ),
+            encoding="utf-8",
         )
 
     def test_first_prepare_creates_three_yolo_medium_workers(self):
@@ -141,8 +195,113 @@ class WorkerPoolTests(unittest.TestCase):
         self.assertEqual([worker["slot"] for worker in result["workers"]], ["P2", "P3", "P4"])
         starts = next(call[1] for call in client.calls if call[0] == "start_workers")
         self.assertEqual(len(starts), 3)
-        self.assertTrue(all(worker["name"].startswith("hdr_") for worker in starts))
+        self.assertEqual(
+            [worker["name"] for worker in starts],
+            ["p2_worker_ready", "p3_worker_ready", "p4_worker_ready"],
+        )
         self.assertTrue(all(worker["pane_id"].startswith("w6:p") for worker in starts))
+
+    def test_first_prepare_uses_visible_ready_names(self):
+        result = self.pool(FakeClient()).prepare(
+            "contract-a",
+            "/tmp/project",
+            3,
+        )
+
+        self.assertEqual(
+            [worker["name"] for worker in result["workers"]],
+            [
+                "p2_worker_ready",
+                "p3_worker_ready",
+                "p4_worker_ready",
+            ],
+        )
+
+    def test_prepare_migrates_legacy_worker_names_without_new_sessions(self):
+        client = FakeClient(
+            [
+                live_agent("hdr_p2", "w6:p3", "session-p2"),
+                live_agent(
+                    "hdr_p3",
+                    "w6:p4",
+                    "session-p3",
+                    status="working",
+                ),
+                live_agent("hdr_p4", "w6:p5", "session-p4"),
+            ]
+        )
+        self.write_legacy_pool_state(client.agents)
+
+        result = self.pool(client).prepare("contract-a", "/tmp/project", 3)
+
+        self.assertEqual(result["action"], "rebound")
+        self.assertEqual(
+            [worker["name"] for worker in result["workers"]],
+            [
+                "p2_worker_ready",
+                "p3_worker_ready",
+                "p4_worker_ready",
+            ],
+        )
+        self.assertEqual(
+            [worker["session_id"] for worker in result["workers"]],
+            ["session-p2", "session-p3", "session-p4"],
+        )
+        self.assertFalse(any(call[0] == "start_workers" for call in client.calls))
+        self.assertFalse(any(call[0] == "reset" for call in client.calls))
+
+    def test_prepare_reconciles_assigned_name_by_stable_session(self):
+        client = FakeClient()
+        pool = self.pool(client)
+        first = pool.prepare("contract-a", "/tmp/project", 3)
+        worker = first["workers"][0]
+        client.rename_agent(worker["name"], "p2_impl_auth")
+
+        result = pool.prepare("contract-a", "/tmp/project", 3)
+
+        rebound = result["workers"][0]
+        self.assertEqual(rebound["name"], "p2_impl_auth")
+        self.assertEqual(rebound["session_id"], worker["session_id"])
+
+    def test_new_contract_resets_then_restores_ready_names(self):
+        client = FakeClient()
+        pool = self.pool(client)
+        first = pool.prepare("contract-a", "/tmp/project-a", 3)
+        client.rename_agent(first["workers"][0]["name"], "p2_impl_auth")
+
+        result = pool.prepare("contract-b", "/tmp/project-b", 3)
+
+        self.assertEqual(result["action"], "reset")
+        self.assertEqual(
+            [worker["name"] for worker in result["workers"]],
+            [
+                "p2_worker_ready",
+                "p3_worker_ready",
+                "p4_worker_ready",
+            ],
+        )
+
+    def test_two_controller_scopes_keep_independent_warm_pools(self):
+        client = FakeClient()
+        first = self.pool_for_scope(client, "aaaaaaaa").prepare(
+            "contract-a",
+            "/tmp/project-a",
+            3,
+        )
+        second = self.pool_for_scope(client, "bbbbbbbb").prepare(
+            "contract-b",
+            "/tmp/project-b",
+            3,
+        )
+
+        self.assertEqual(len({w["session_id"] for w in first["workers"]}), 3)
+        self.assertEqual(len({w["session_id"] for w in second["workers"]}), 3)
+        self.assertTrue(
+            set(w["name"] for w in first["workers"]).isdisjoint(
+                w["name"] for w in second["workers"]
+            )
+        )
+        self.assertFalse(any(call[0] == "reset" for call in client.calls))
 
     def test_first_prepare_clears_startup_gate_before_first_session_binds(self):
         client = FakeClient(sessions_on_start=False)
@@ -185,7 +344,11 @@ class WorkerPoolTests(unittest.TestCase):
         self.assertEqual(result["action"], "reset")
         self.assertEqual(
             [call for call in client.calls if call[0] == "reset"],
-            [("reset", "hdr_p2"), ("reset", "hdr_p3"), ("reset", "hdr_p4")],
+            [
+                ("reset", "p2_worker_ready"),
+                ("reset", "p3_worker_ready"),
+                ("reset", "p4_worker_ready"),
+            ],
         )
         self.assertTrue(all(worker["input_ready"] for worker in result["workers"]))
         self.assertTrue(all(worker["rebind_pending"] for worker in result["workers"]))
@@ -196,7 +359,7 @@ class WorkerPoolTests(unittest.TestCase):
         pool.prepare("contract-a", "/tmp/project", 3)
         client.agents[1]["agent_status"] = "working"
 
-        with self.assertRaisesRegex(PoolError, "hdr_p3.*working"):
+        with self.assertRaisesRegex(PoolError, "p3_worker_ready.*working"):
             pool.prepare("contract-b", "/tmp/project", 3)
 
         self.assertFalse(any(call[0] == "reset" for call in client.calls))
@@ -213,6 +376,7 @@ class WorkerPoolTests(unittest.TestCase):
             state_path=self.state_path,
             workspace_id="w8",
             anchor_pane_id="w8:p1",
+            controller_scope="aaaaaaaa",
         ).prepare("contract-a", "/tmp/project", 3)
 
         self.assertEqual(result["status"], "busy")
@@ -250,6 +414,7 @@ class WorkerPoolTests(unittest.TestCase):
             state_path=self.state_path,
             workspace_id="w8",
             anchor_pane_id="w8:p1",
+            controller_scope="aaaaaaaa",
         )
 
         result = moved_controller.prepare("contract-a", "/tmp/project", 3)
@@ -265,6 +430,7 @@ class WorkerPoolTests(unittest.TestCase):
             state_path=legacy_path,
             workspace_id="w5",
             anchor_pane_id="w5:p1",
+            controller_scope="aaaaaaaa",
         ).prepare("contract-a", "/tmp/project", 3)
         active_path = Path(self.tempdir.name) / "active.json"
         client.calls.clear()
@@ -274,6 +440,7 @@ class WorkerPoolTests(unittest.TestCase):
             state_path=active_path,
             workspace_id="w8",
             anchor_pane_id="w8:p1",
+            controller_scope="aaaaaaaa",
         ).prepare("contract-a", "/tmp/project", 3)
 
         self.assertEqual(result["action"], "reused")
@@ -283,14 +450,23 @@ class WorkerPoolTests(unittest.TestCase):
 
     def test_default_pool_ledger_is_not_workspace_scoped(self):
         with patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr-a.sock"}):
-            first = default_state_path("w6")
-            moved = default_state_path("w8")
+            first = default_state_path("w6", "aaaaaaaa")
+            moved = default_state_path("w8", "aaaaaaaa")
         with patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr-b.sock"}):
-            another_session = default_state_path("w6")
+            another_session = default_state_path("w6", "aaaaaaaa")
 
         self.assertTrue(first.name.startswith("active-"))
         self.assertEqual(moved, first)
         self.assertNotEqual(another_session, first)
+
+    def test_default_pool_ledger_is_controller_scope_scoped(self):
+        with patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr-a.sock"}):
+            first = default_state_path("w6", "aaaaaaaa")
+            second = default_state_path("w6", "bbbbbbbb")
+
+        self.assertNotEqual(second, first)
+        self.assertIn("aaaaaaaa", first.name)
+        self.assertIn("bbbbbbbb", second.name)
 
     def test_pool_rejects_a_ledger_from_another_herdr_session(self):
         client = FakeClient()
@@ -313,7 +489,7 @@ class WorkerPoolTests(unittest.TestCase):
         result = pool.prepare("contract-a", "/tmp/project", 3)
 
         self.assertEqual(result["action"], "rebound")
-        worker = next(worker for worker in result["workers"] if worker["name"] == "hdr_p3")
+        worker = next(worker for worker in result["workers"] if worker["slot"] == "P3")
         self.assertEqual(worker["pane_id"], "w8:p9")
         self.assertEqual(worker["workspace_id"], "w8")
         self.assertFalse(any(call[0] == "start_workers" for call in client.calls))
@@ -323,10 +499,11 @@ class WorkerPoolTests(unittest.TestCase):
         pool = self.pool(client)
         original = pool.prepare("contract-a", "/tmp/project", 3)
         original_sessions = {
-            worker["name"]: worker["session_id"] for worker in original["workers"]
+            worker["slot"]: worker["session_id"] for worker in original["workers"]
         }
+        closed = next(worker for worker in original["workers"] if worker["slot"] == "P3")
         client.agents = [
-            agent for agent in client.agents if agent["name"] != "hdr_p3"
+            agent for agent in client.agents if agent["name"] != closed["name"]
         ]
         client.calls.clear()
 
@@ -334,12 +511,12 @@ class WorkerPoolTests(unittest.TestCase):
 
         self.assertEqual(result["action"], "recovered")
         starts = next(call[1] for call in client.calls if call[0] == "start_workers")
-        self.assertEqual([worker["name"] for worker in starts], ["hdr_p3"])
+        self.assertEqual([worker["slot"] for worker in starts], ["P3"])
         sessions = {
-            worker["name"]: worker["session_id"] for worker in result["workers"]
+            worker["slot"]: worker["session_id"] for worker in result["workers"]
         }
-        self.assertEqual(sessions["hdr_p2"], original_sessions["hdr_p2"])
-        self.assertEqual(sessions["hdr_p4"], original_sessions["hdr_p4"])
+        self.assertEqual(sessions["P2"], original_sessions["P2"])
+        self.assertEqual(sessions["P4"], original_sessions["P4"])
 
     def test_prepare_expands_an_existing_pool_to_requested_count(self):
         client = FakeClient()
@@ -356,16 +533,17 @@ class WorkerPoolTests(unittest.TestCase):
         )
         starts = next(call[1] for call in client.calls if call[0] == "start_workers")
         self.assertEqual(
-            [worker["name"] for worker in starts],
-            ["hdr_p3", "hdr_p4"],
+            [worker["slot"] for worker in starts],
+            ["P3", "P4"],
         )
 
     def test_wrong_root_is_rejected_before_recovering_a_closed_worker(self):
         client = FakeClient()
         pool = self.pool(client)
-        pool.prepare("contract-a", "/tmp/project", 3)
+        original = pool.prepare("contract-a", "/tmp/project", 3)
+        closed = next(worker for worker in original["workers"] if worker["slot"] == "P3")
         client.agents = [
-            agent for agent in client.agents if agent["name"] != "hdr_p3"
+            agent for agent in client.agents if agent["name"] != closed["name"]
         ]
         client.calls.clear()
 
@@ -446,9 +624,10 @@ class WorkerPoolTests(unittest.TestCase):
     def test_failed_closed_worker_recovery_is_quarantined_and_resumable(self):
         client = FakeClient()
         pool = self.pool(client)
-        pool.prepare("contract-a", "/tmp/project", 3)
+        original = pool.prepare("contract-a", "/tmp/project", 3)
+        closed = next(worker for worker in original["workers"] if worker["slot"] == "P3")
         client.agents = [
-            agent for agent in client.agents if agent["name"] != "hdr_p3"
+            agent for agent in client.agents if agent["name"] != closed["name"]
         ]
         client.invalid_argv_once = True
 
@@ -458,7 +637,7 @@ class WorkerPoolTests(unittest.TestCase):
         self.assertTrue(any(call[0] == "quarantine" for call in client.calls))
         recovered = pool.prepare("contract-a", "/tmp/project", 3)
         self.assertEqual(recovered["action"], "recovered")
-        self.assertTrue(any(agent["name"] == "hdr_p3" for agent in client.agents))
+        self.assertTrue(any(worker["slot"] == "P3" for worker in recovered["workers"]))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import json
+import threading
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from scripts.controller_router import (
     ControllerRouter,
     RouterError,
+    controller_scope_id,
     decide_controller_action,
 )
 
@@ -14,7 +16,7 @@ def agent(name, pane, session, status="done", terminal="term-1"):
     return {
         "name": name,
         "pane_id": pane,
-        "workspace_id": "w1",
+        "workspace_id": pane.split(":")[0],
         "terminal_id": terminal,
         "agent_status": status,
         "agent_session": {"value": session},
@@ -86,6 +88,30 @@ class ControllerDecisionTests(unittest.TestCase):
         self.assertEqual(decision["reason"], "BLOCKED_ROLE_CONFLICT")
 
 
+class DynamicControllerDecisionTests(unittest.TestCase):
+    def test_dynamic_worker_forwards_to_dynamic_controller(self):
+        current = agent("p2_impl_auth", "w1:p2", "session-worker")
+        controller = agent(
+            "p1_orchestrator",
+            "w1:p1",
+            "session-p1",
+            status="idle",
+        )
+
+        result = decide_controller_action(current, controller)
+
+        self.assertEqual(result["action"], "FORWARD")
+        self.assertEqual(result["controller_pane_id"], "w1:p1")
+
+    def test_legacy_worker_still_forwards_during_migration(self):
+        current = agent("hdr_p7", "w1:p7", "session-worker")
+        controller = agent("p1_orchestrator", "w1:p1", "session-p1")
+
+        result = decide_controller_action(current, controller)
+
+        self.assertEqual(result["action"], "FORWARD")
+
+
 class ControllerRouterTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -102,15 +128,51 @@ class ControllerRouterTests(unittest.TestCase):
         result = router.promote(current)
 
         self.assertEqual(result["action"], "PROMOTE")
-        self.assertEqual(result["controller"]["name"], "hdr_p1")
+        self.assertEqual(result["controller"]["name"], "p1_orchestrator")
         self.assertEqual(result["controller"]["pane_id"], "w1:p2")
         self.assertEqual(result["controller"]["session_id"], "session-a")
         self.assertEqual(
             client.calls,
             [
-                ("rename_agent", "w1:p2", "hdr_p1"),
+                ("list_agents",),
+                ("rename_agent", "w1:p2", "p1_orchestrator"),
                 ("list_agents",),
             ],
+        )
+
+    def test_promotion_renames_controller_to_visible_role(self):
+        current = agent("", "w1:p2", "session-new", terminal="term-new")
+        client = FakeClient(
+            [agent("", "w1:p2", "session-new", terminal="term-new")]
+        )
+        router = ControllerRouter(client, self.root, "sock-a")
+
+        result = router.promote(current)
+
+        self.assertEqual(result["controller"]["name"], "p1_orchestrator")
+        self.assertIn(
+            ("rename_agent", "w1:p2", "p1_orchestrator"),
+            client.calls,
+        )
+
+    def test_first_tick_migrates_legacy_controller_without_new_session(self):
+        current = agent(
+            "hdr_p1",
+            "w1:p7",
+            "session-p1",
+            terminal="term-p1",
+            status="working",
+        )
+        client = FakeClient([current])
+        router = ControllerRouter(client, self.root, "sock-a")
+
+        result = router.ensure_controller_name(current)
+
+        self.assertEqual(result["name"], "p1_orchestrator")
+        self.assertEqual(result["session_id"], "session-p1")
+        self.assertIn(
+            ("rename_agent", "w1:p7", "p1_orchestrator"),
+            client.calls,
         )
 
     def test_promotion_fails_closed_when_session_changes_during_recheck(self):
@@ -134,7 +196,8 @@ class ControllerRouterTests(unittest.TestCase):
 
         self.assertEqual(first["action"], "FORWARDED")
         self.assertEqual(first["request_id"], second["request_id"])
-        request_path = self.root / "sock-a" / "p1-inbox" / f"{first['request_id']}.json"
+        scope = controller_scope_id("session-p1")
+        request_path = self.root / "sock-a" / scope / "p1-inbox" / f"{first['request_id']}.json"
         stored = json.loads(request_path.read_text(encoding="utf-8"))
         self.assertEqual(stored["request"], request)
         self.assertEqual(stored["from"]["session_id"], "session-worker")
@@ -218,6 +281,107 @@ class ControllerRouterTests(unittest.TestCase):
         moved = moved_router.forward_request(moved_worker, moved_controller, request)
 
         self.assertEqual(first["request_id"], moved["request_id"])
+
+    def test_request_id_survives_role_and_task_rename(self):
+        controller = agent(
+            "p1_orchestrator",
+            "w1:p1",
+            "session-p1",
+            status="idle",
+        )
+        router = ControllerRouter(
+            client=FakeClient([controller]),
+            inbox_root=self.root,
+            socket_key="sock-a",
+        )
+        request = {"text": "same user delta"}
+
+        first = router.forward_request(
+            agent("p2_impl_auth", "w1:p2", "session-worker"),
+            controller,
+            request,
+        )
+        renamed = router.forward_request(
+            agent("p2_impl_schema", "w2:p8", "session-worker"),
+            controller,
+            request,
+        )
+
+        self.assertEqual(first["request_id"], renamed["request_id"])
+
+    def test_concurrent_promotions_get_separate_controller_scopes(self):
+        agents = [
+            agent("", "w1:p2", "session-a", terminal="term-a"),
+            agent("", "w2:p2", "session-b", terminal="term-b"),
+        ]
+        client = FakeClient(agents)
+        router = ControllerRouter(client, self.root, "sock-a")
+        barrier = threading.Barrier(2)
+        results = []
+
+        def promote(current):
+            barrier.wait(timeout=2)
+            results.append(router.promote(current))
+
+        threads = [threading.Thread(target=promote, args=(item,)) for item in agents]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=2)
+
+        controllers = [result["controller"] for result in results]
+        scopes = {controller["controller_scope"] for controller in controllers}
+        names = {controller["name"] for controller in controllers}
+        self.assertEqual(len(scopes), 2)
+        self.assertEqual(len(names), 2)
+        self.assertTrue(all(name.startswith("p1_orchestrator") for name in names))
+        self.assertTrue(
+            all((self.root / "sock-a" / scope / "p1-inbox").is_dir() for scope in scopes)
+        )
+        registry = json.loads(
+            (self.root / "sock-a" / "runtime-registry.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(registry["controller_scopes"]), scopes)
+
+        controller_a = next(item for item in controllers if item["session_id"] == "session-a")
+        controller_b = next(item for item in controllers if item["session_id"] == "session-b")
+        request = router.forward_request(
+            agent("p2_impl_auth", "w1:p5", "worker-a"),
+            controller_a,
+            {"text": "scope-a only"},
+        )
+
+        self.assertTrue(
+            (self.root / "sock-a" / controller_a["controller_scope"] / "p1-inbox" / f"{request['request_id']}.json").is_file()
+        )
+        self.assertFalse(
+            (self.root / "sock-a" / controller_b["controller_scope"] / "p1-inbox" / f"{request['request_id']}.json").exists()
+        )
+        self.assertNotIn(("rename_agent", controller_b["pane_id"], controller_a["name"]), client.calls)
+
+    def test_legacy_inbox_migrates_once_to_claiming_controller_scope(self):
+        legacy = self.root / "sock-a" / "p1-inbox"
+        legacy.mkdir(parents=True)
+        first = legacy / "req-a.json"
+        second = legacy / "req-b.json"
+        first.write_text('{"request_id":"req-a","text":"a"}\n', encoding="utf-8")
+        second.write_text('{"request_id":"req-b","text":"b"}\n', encoding="utf-8")
+        controller = agent("hdr_p1", "w1:p1", "session-p1")
+        other = agent("", "w2:p1", "session-other")
+        router = ControllerRouter(FakeClient([controller, other]), self.root, "sock-a")
+
+        migrated = router.ensure_controller_name(controller)
+        other_controller = router.promote(other)["controller"]
+        resumed = router.ensure_controller_name(migrated)
+
+        scoped = self.root / "sock-a" / migrated["controller_scope"] / "p1-inbox"
+        other_scoped = self.root / "sock-a" / other_controller["controller_scope"] / "p1-inbox"
+        self.assertFalse(first.exists())
+        self.assertEqual((scoped / "req-a.json").read_text(encoding="utf-8"), '{"request_id":"req-a","text":"a"}\n')
+        self.assertEqual((scoped / "req-b.json").read_text(encoding="utf-8"), '{"request_id":"req-b","text":"b"}\n')
+        self.assertTrue((scoped / ".legacy-migrated").is_file())
+        self.assertFalse((other_scoped / "req-a.json").exists())
+        self.assertEqual(resumed["controller_scope"], migrated["controller_scope"])
 
 
 if __name__ == "__main__":
