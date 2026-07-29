@@ -13,7 +13,9 @@ class ReceiptValidationTests(unittest.TestCase):
                 "lane-api": {
                     "generation": 2,
                     "role": "worker",
-                    "agent_name": "worker_api",
+                    "agent_name": "p2_impl_api",
+                    "expected_agent_name": "p2_impl_api",
+                    "dispatch_agent_name": "worker_api",
                     "pane_id": "w1:p2",
                     "session_id": "session-2",
                     "root": "/tmp/project",
@@ -53,6 +55,22 @@ class ReceiptValidationTests(unittest.TestCase):
 
     def test_accepts_current_worker_pass(self):
         self.assertEqual(validate_receipt(self.receipt, self.state), [])
+
+    def test_validates_receipt_against_dispatch_identity_after_live_rename(self):
+        state = copy.deepcopy(self.state)
+        state["lanes"]["lane-api"]["agent_name"] = "p2_impl_schema"
+        state["lanes"]["lane-api"]["expected_agent_name"] = "p2_impl_schema"
+
+        self.assertEqual(validate_receipt(self.receipt, state), [])
+
+    def test_rejects_agent_name_that_misses_dispatch_identity(self):
+        receipt = copy.deepcopy(self.receipt)
+        receipt["agent_name"] = "p2_impl_api"
+
+        self.assertIn(
+            "agent_name does not match dispatch identity",
+            validate_receipt(receipt, self.state),
+        )
 
     def test_rejects_missing_required_field(self):
         receipt = copy.deepcopy(self.receipt)

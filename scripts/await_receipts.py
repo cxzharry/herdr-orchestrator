@@ -5,16 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
 
 try:
+    from scripts.scheduler_state import atomic_update, read_state
     from scripts.validate_lane_receipt import validate_receipt
 except ModuleNotFoundError:
+    from scheduler_state import atomic_update, read_state
     from validate_lane_receipt import validate_receipt
 
 
@@ -57,14 +57,19 @@ def reconcile_once(
     live_agents: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return current receipt and liveness observations without waiting."""
-    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state = read_state(state_path)
     by_session = {}
     for agent in live_agents or []:
         session = _session_id(agent)
         if session:
             by_session[session] = agent
 
-    result: dict[str, Any] = {"terminal": {}, "moved": {}, "missing": {}}
+    result: dict[str, Any] = {
+        "terminal": {},
+        "moved": {},
+        "name_drift": {},
+        "missing": {},
+    }
     for lane_id in lane_ids:
         lane = state.get("lanes", {}).get(lane_id)
         if lane is None:
@@ -101,6 +106,15 @@ def reconcile_once(
                 "pane_id": pane_id,
                 "session_id": session,
             }
+        expected_name = lane.get("expected_agent_name") or lane.get("agent_name")
+        live_name = agent.get("name")
+        if expected_name and live_name != expected_name:
+            result["name_drift"][lane_id] = {
+                "expected_agent_name": expected_name,
+                "agent_name": live_name,
+                "pane_id": pane_id,
+                "session_id": session,
+            }
     return result
 
 
@@ -110,39 +124,27 @@ def _rebind_lane(
     expected_session_id: str,
     agent: dict[str, Any],
 ) -> dict[str, str] | None:
-    value = json.loads(state_path.read_text(encoding="utf-8"))
-    lane = value.get("lanes", {}).get(lane_id)
-    if lane is None or lane.get("session_id") != expected_session_id:
-        return None
     pane_id = agent.get("pane_id")
     if not pane_id:
         raise ReceiptWaitError(f"{lane_id} live agent has no pane_id")
 
-    previous_pane_id = lane.get("pane_id")
-    changed = previous_pane_id != pane_id
-    lane["pane_id"] = pane_id
-    if agent.get("name"):
-        lane["agent_name"] = agent["name"]
-    if not changed:
-        return None
+    def mutate(value: dict[str, Any]) -> dict[str, str] | None:
+        lane = value.get("lanes", {}).get(lane_id)
+        if lane is None or lane.get("session_id") != expected_session_id:
+            return None
+        previous_pane_id = lane.get("pane_id")
+        changed = previous_pane_id != pane_id
+        lane["pane_id"] = pane_id
+        if agent.get("name"):
+            lane["agent_name"] = agent["name"]
+        if not changed:
+            return None
+        return {
+            "previous_pane_id": str(previous_pane_id),
+            "pane_id": str(pane_id),
+        }
 
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{state_path.name}.",
-        dir=state_path.parent,
-        text=True,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(value, handle, indent=2)
-            handle.write("\n")
-        os.replace(temporary, state_path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    return {
-        "previous_pane_id": str(previous_pane_id),
-        "pane_id": str(pane_id),
-    }
+    return atomic_update(state_path, mutate)
 
 
 def await_lanes(
@@ -162,7 +164,7 @@ def await_lanes(
     observed_identity: dict[str, tuple[int, str]] = {}
     rebound: dict[str, dict[str, str]] = {}
     while time.monotonic() < deadline:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state = read_state(state_path)
         terminal = {}
         for lane_id in lane_ids:
             lane = state.get("lanes", {}).get(lane_id)

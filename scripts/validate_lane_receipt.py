@@ -52,7 +52,6 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
     expected_fields = {
         "generation": "generation does not match current lane",
         "role": "role does not match current lane",
-        "agent_name": "agent_name does not match current lane",
         "pane_id": "pane_id does not match current lane",
         "session_id": "session_id does not match current lane",
         "input_identity": "input_identity does not match current lane",
@@ -60,6 +59,9 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
     for field, message in expected_fields.items():
         if receipt[field] != lane.get(field):
             failures.append(message)
+    dispatch_name = lane.get("dispatch_agent_name", lane.get("agent_name"))
+    if receipt["agent_name"] != dispatch_name:
+        failures.append("agent_name does not match dispatch identity")
     optional_identity_fields = {
         "root": "root does not match current lane",
         "base_sha": "base_sha does not match current lane",

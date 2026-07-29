@@ -14,6 +14,7 @@ class RegisterLaneTests(unittest.TestCase):
             json.dumps(
                 {
                     "contract_id": "contract-a",
+                    "controller_scope": "scope-a",
                     "lanes": {
                         "integration": {
                             "lane_id": "integration",
@@ -29,9 +30,12 @@ class RegisterLaneTests(unittest.TestCase):
             json.dumps(
                 {
                     "lane_id": "review",
-                    "generation": 1,
-                    "role": "integration-reviewer",
-                    "agent_name": "reviewer",
+                            "generation": 1,
+                            "slot": "P5",
+                            "role": "integration-reviewer",
+                            "display_role": "integration_review",
+                            "display_slug": None,
+                            "agent_name": "reviewer",
                     "pane_id": "w1:p6",
                     "session_id": "session-6",
                     "input_identity": {"artifact": "abc"},
@@ -49,6 +53,10 @@ class RegisterLaneTests(unittest.TestCase):
 
         lane = value["lanes"]["review"]
         self.assertEqual(lane["contract_id"], "contract-a")
+        self.assertEqual(lane["controller_scope"], "scope-a")
+        self.assertEqual(lane["slot"], "P5")
+        self.assertEqual(lane["display_role"], "integration_review")
+        self.assertIsNone(lane["display_slug"])
         self.assertEqual(value["schema_version"], "herdr-control-state/v2")
         self.assertEqual(value["revision"], 1)
         self.assertEqual(lane["state"], "READY")
@@ -63,6 +71,14 @@ class RegisterLaneTests(unittest.TestCase):
         self.lane.write_text(json.dumps(value), encoding="utf-8")
 
         with self.assertRaisesRegex(LaneRegistrationError, "already exists"):
+            register_lane(self.state, self.lane)
+
+    def test_rejects_lane_leased_to_different_scope(self):
+        value = json.loads(self.lane.read_text(encoding="utf-8"))
+        value["controller_scope"] = "scope-b"
+        self.lane.write_text(json.dumps(value), encoding="utf-8")
+
+        with self.assertRaisesRegex(LaneRegistrationError, "different controller scope"):
             register_lane(self.state, self.lane)
 
 

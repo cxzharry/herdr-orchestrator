@@ -11,6 +11,19 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
+try:
+    from scripts.agent_naming import (
+        canonical_display_role,
+        slot_from_agent_name,
+        slot_from_lane_id,
+    )
+except ModuleNotFoundError:
+    from agent_naming import (
+        canonical_display_role,
+        slot_from_agent_name,
+        slot_from_lane_id,
+    )
+
 
 PLAN_REQUIRED_TYPES = {
     "architecture",
@@ -61,6 +74,7 @@ def normalize_lane(run_state: dict, lane_id: str, source: dict, run_dir: Path) -
         {
             "lane_id": lane_id,
             "contract_id": run_state["contract_id"],
+            "controller_scope": run_state["controller_scope"],
             "root": run_state.get("root"),
             "base_sha": run_state.get("base_sha"),
             "state": source.get("state", "READY"),
@@ -73,6 +87,22 @@ def normalize_lane(run_state: dict, lane_id: str, source: dict, run_dir: Path) -
     lane.setdefault("owned_scope", [])
     lane.setdefault("dependencies", [])
     lane.setdefault("blocked_by", [])
+    lane["slot"] = (
+        source.get("slot")
+        or slot_from_agent_name(source.get("agent_name"))
+        or slot_from_lane_id(lane_id)
+    )
+    lane["display_role"] = (
+        source.get("display_role")
+        or canonical_display_role(lane.get("slot"), source["role"])
+    )
+    if "display_slug" not in lane:
+        lane["display_slug"] = lane_id
+    lane.setdefault("expected_agent_name", lane.get("agent_name"))
+    lane.setdefault("dispatch_agent_name", lane.get("agent_name"))
+    source_scope = source.get("controller_scope")
+    if source_scope is not None and source_scope != run_state["controller_scope"]:
+        raise SchedulerStateError("lane leased to a different controller scope")
     return lane
 
 
@@ -105,6 +135,8 @@ def set_lane(
         lane = value.get("lanes", {}).get(lane_id)
         if lane is None:
             raise SchedulerStateError(f"unknown lane: {lane_id}")
+        if lane.get("name_assignment"):
+            raise SchedulerStateError("lane has a pending name assignment")
         lane["generation"] = generation
         lane["state"] = state_value
         lane["receipt_path"] = receipt_path
@@ -179,6 +211,12 @@ def register_delta(state_path: Path, request: dict) -> dict:
         lane["contract_id"] = value["contract_id"]
         lane["root"] = value.get("root")
         lane["base_sha"] = value.get("base_sha")
+        lane["display_role"] = record["display_role"] or lane["display_role"]
+        lane["display_slug"] = (
+            record["display_slug"]
+            if record["display_slug_provided"]
+            else lane["lane_id"]
+        )
         result = {
             "status": "DISPATCH",
             "request_id": request_id,
@@ -195,11 +233,27 @@ def register_delta(state_path: Path, request: dict) -> dict:
 def _normalize_existing_lane(state: dict, lane_id: str, lane: dict) -> None:
     lane.setdefault("lane_id", lane_id)
     lane.setdefault("contract_id", state.get("contract_id"))
+    if "controller_scope" in state:
+        lane["controller_scope"] = state["controller_scope"]
     lane.setdefault("root", state.get("root"))
     lane.setdefault("base_sha", state.get("base_sha"))
     lane.setdefault("owned_scope", [])
     lane.setdefault("dependencies", [])
     lane.setdefault("blocked_by", [])
+    lane["slot"] = (
+        lane.get("slot")
+        or slot_from_agent_name(lane.get("agent_name"))
+        or slot_from_lane_id(lane_id)
+    )
+    if "role" in lane:
+        lane["display_role"] = (
+            lane.get("display_role")
+            or canonical_display_role(lane.get("slot"), lane["role"])
+        )
+    if "display_slug" not in lane:
+        lane["display_slug"] = lane_id
+    lane.setdefault("expected_agent_name", lane.get("agent_name"))
+    lane.setdefault("dispatch_agent_name", lane.get("agent_name"))
 
 
 def _request_record(request: dict) -> dict:
@@ -209,6 +263,9 @@ def _request_record(request: dict) -> dict:
         "change_type": request.get("change_type", "code"),
         "affected_paths": copy.deepcopy(request.get("affected_paths")),
         "input_identity": copy.deepcopy(request.get("input_identity", {})),
+        "display_role": request.get("display_role"),
+        "display_slug": request.get("display_slug"),
+        "display_slug_provided": "display_slug" in request,
         "dependencies": list(request.get("dependencies", [])),
         "risk_markers": list(request.get("risk_markers", [])),
         "state": "READY",
@@ -258,7 +315,11 @@ def _path_overlaps(first: str, second: str) -> bool:
 def _next_idle_lane(state: dict) -> dict | None:
     for lane_id in sorted(state.get("lanes", {})):
         lane = state["lanes"][lane_id]
-        if lane_id in SCHEDULER_LANES and lane.get("state") in READY_STATES:
+        if (
+            lane_id in SCHEDULER_LANES
+            and lane.get("state") in READY_STATES
+            and not lane.get("name_assignment")
+        ):
             return lane
     return None
 
