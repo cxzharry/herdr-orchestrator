@@ -20,8 +20,8 @@ REQUIRED_FILES = {
     "delivery-flow.svg",
 }
 CANONICAL_SOURCE_HASHES = {
-    "delivery-flow.excalidraw": "7169472156c7acbaf6d8a9818f7622f0e8500c3b91a28def9eedda16ee724a41",
-    "delivery-flow.svg": "c28ad583102f0206a884f9039fcee994d38594ae7444476fc95ba25625eb3054",
+    "delivery-flow.excalidraw": "d2136257200e5ab64dfd4ba285b5d5781e108fa141f12e06c0caf9f3beead806",
+    "delivery-flow.svg": "ad8fba6a14c1f3a02931da0d81cc0eb42924aaf622dfae134c8edb01edc10c98",
 }
 PANE_IDS = (
     "orchestrator",
@@ -155,7 +155,7 @@ EXPECTED_TEXTS = {
     "task_text": "USER\nTASK",
     "orchestrator_text": "P1 CONTROL PLANE\n\nINBOX · SCHEDULER TICK\nOWNERSHIP QUEUE",
     "ready_text": "Bounded\ntick ready?",
-    "contract_text": "SOCKET STATE\n\nsocket-scoped P1 inbox\nwatcher event queue",
+    "contract_text": "WORKSPACE STATE\n\nsame-workspace P1 inbox\nwatcher event queue",
     "isolation_text": "Need\nisolation?",
     "worktree_text": "WORKTREE / LANE\nbranch · port · state",
     "fork_text": "",
@@ -193,6 +193,7 @@ EXPECTED_TEXTS = {
         "LIVE NAME = p{slot}_{role}_{task} · "
         "STATUS STAYS IN HERDR"
     ),
+    "workspace_boundary_text": "ONE HERDR WORKSPACE\nP1 + P2-P9 SAME WORKSPACE\nCROSS-SPACE PROHIBITED",
     "phase_1": "1  INBOX + CONTRACT",
     "phase_2": "2  SCHEDULER + OWNERSHIP",
     "phase_3": "3  VERIFY + DEPLOY",
@@ -218,6 +219,7 @@ EXPECTED_ELEMENT_TYPES = {
     **{text_id: "text" for text_id in EXPECTED_TEXTS},
     **{arrow_id: "arrow" for arrow_id in ARROW_IDS},
     "integration_badge": "rectangle",
+    "workspace_boundary": "rectangle",
 }
 
 ORCHESTRATOR_STYLE = ("#51cf66", "#173d24")

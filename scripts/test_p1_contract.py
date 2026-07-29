@@ -30,7 +30,7 @@ class PersistentP1BoundaryTests(unittest.TestCase):
         required_markers = [
             "P1 is a persistent controller only",
             "P1 never implements, tests, integrates, reviews, commits, pushes, or deploys",
-            "P5 integrates accepted worker outputs",
+            "integrates after validator-clean receipts",
             "P5 writes integration and deployment evidence",
             "Compact verifier",
         ]
@@ -51,7 +51,7 @@ class PersistentP1BoundaryTests(unittest.TestCase):
         for marker in [
             "bounded scheduler tick",
             "watcher event queue",
-            "socket-scoped P1 inbox",
+            "same-workspace P1 inbox",
             "dispatch all ready lanes without waiting",
             "ownership queue",
         ]:
@@ -72,6 +72,9 @@ class PersistentP1BoundaryTests(unittest.TestCase):
         for marker in [
             "PERSISTENT P1 CONTROL PLANE",
             "P2-P9 DELIVERY PLANE",
+            "ONE HERDR WORKSPACE",
+            "P1 + P2-P9 SAME WORKSPACE",
+            "CROSS-SPACE PROHIBITED",
             "INBOX",
             "SCHEDULER TICK",
             "OWNERSHIP QUEUE",
@@ -84,6 +87,31 @@ class PersistentP1BoundaryTests(unittest.TestCase):
 
         self.assertNotIn("P1 PROMOTE / DELIVER", self.asset_text)
         self.assertNotIn("P1 reruns", self.asset_text)
+
+    def test_contract_forbids_cross_workspace_pool_sharing(self):
+        required_markers = [
+            "P1 and every worker used by that P1 stay in the same Herdr workspace",
+            "Another workspace on the same socket is a separate pool",
+            "Never adopt, dispatch, auto-move, prompt, receipt, event, or session-share across workspace boundaries",
+            "If a worker moves out of the workspace, mark it lost and create or bind a local replacement",
+            "If a worker moves inside the same workspace, preserve the lane and session",
+        ]
+        for marker in required_markers:
+            self.assertIn(marker, self.corpus)
+
+        forbidden_patterns = [
+            r"multiple spaces may share one Herdr socket",
+            r"cross-workspace (?:recovery|verification|adoption)",
+            r"P1 may move to another Herdr workspace",
+            r"P1 workspace is not pool ownership",
+            r"worker may live in a different workspace",
+            r"two spaces (?:share|to dispatch)",
+            r"separate controller scope",
+            r"two controller scopes on the same Herdr socket",
+            r"adopts? a unique legacy workspace ledger",
+        ]
+        for pattern in forbidden_patterns:
+            self.assertIsNone(re.search(pattern, self.corpus, flags=re.IGNORECASE), pattern)
 
 
 if __name__ == "__main__":

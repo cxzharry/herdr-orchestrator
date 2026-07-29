@@ -9,10 +9,13 @@ evidence. Missing, stale, or contradictory inputs return BLOCKED upstream.
 Do not brainstorm, redesign the product, or write a plan.
 
 P1 is a persistent controller only. P1 never implements, tests, integrates,
-reviews, commits, pushes, or deploys. On every turn or compaction, run
+reviews, commits, pushes, or deploys. P1 and every worker used by that P1 stay
+in the same Herdr workspace. Another workspace on the same socket is a separate
+pool. Never adopt, dispatch, auto-move, prompt, receipt, event, or session-share
+across workspace boundaries. On every turn or compaction, run
 `next_controller_action.py`; do not continue from memory. A P1 turn is one
-bounded scheduler tick: claim this chat's controller scope and socket-scoped P1
-inbox, claim watcher event queue entries, reconcile ownership queue state,
+bounded scheduler tick: claim this chat's controller scope and same-workspace
+P1 inbox, claim watcher event queue entries, reconcile ownership queue state,
 dispatch all ready lanes without waiting, and return active, queued, blocked,
 and newly dispatched work.
 
@@ -249,24 +252,25 @@ python3 <skill-root>/scripts/manage_worker_pool.py bind --contract-id \
 ```
 
 The default ledger is
-`~/.codex/herdr-pools/active-<socket-key>.json`: scoped by controller inside one
-Herdr socket. Live `p2_worker_ready`-style names are display handles. P1's
-workspace and pane are controller locations, not pool ownership. A P1 recreated
-in another workspace must run `prepare` normally; the helper atomically adopts a
-unique legacy workspace ledger, resolves workers by slot, terminal, and
-session, and keeps their current panes. Never copy a ledger to the new
-workspace or move healthy workers just to colocate them with P1.
+`~/.codex/herdr-pools/active-<socket-key>-<workspace-id>.json`: scoped by
+controller inside one Herdr workspace. Live `p2_worker_ready`-style names are
+display handles. Workspace ID is the pool boundary. A P1 recreated in another
+workspace starts a separate pool and must not adopt legacy workers, receipts,
+events, sessions, or ledgers from the old workspace.
 
-`prepare` updates a moved worker's pane when its session is unchanged. It
-recreates only a closed slot and preserves healthy siblings. It still refuses
-busy workers from another contract or a mismatched session; those are active
-ownership conflicts, not recovery cases. For the same contract, stable busy
-workers return `status=busy, action=attached`. Resume tracking their current
-lanes; do not dispatch a second capsule until they settle. The helper locks the
-complete pool transaction, so a second P1 waits instead of overwriting newer
-identity state. Closed-slot recovery records its pane reservation before
-launch. A failed launch is renamed as an orphan without closing its pane; the
-next prepare retries the slot instead of colliding with the partial worker.
+`prepare` updates a moved worker's pane when its session is unchanged and the
+new pane remains inside the same workspace. If a worker moves out of the
+workspace, mark it lost and create or bind a local replacement. If a worker
+moves inside the same workspace, preserve the lane and session. It recreates
+only a closed slot and preserves healthy siblings. It still refuses busy workers
+from another contract or a mismatched session; those are active ownership
+conflicts, not recovery cases. For the same contract, stable busy workers return
+`status=busy, action=attached`. Resume tracking their current lanes; do not
+dispatch a second capsule until they settle. The helper locks the complete pool
+transaction, so a second P1 waits instead of overwriting newer identity state.
+Closed-slot recovery records its pane reservation before launch. A failed
+launch is renamed as an orphan without closing its pane; the next prepare
+retries the slot instead of colliding with the partial worker.
 
 After approved-input identity and gate eligibility pass, P1 may start the
 required number of empty P2-P4 agents while it finishes lane-specific
@@ -327,7 +331,7 @@ P1 scheduler tick -> ready P2/P3/P4 workers in parallel
 The Compact verifier is read-only and owns the deterministic acceptance check.
 P1 records only the verifier result and routing state. Do not start P5-P9.
 Run the worker reuse policy before cold-starting missing capacity.
-Use a smaller socket-scoped scheduler state containing controller, delta,
+Use a smaller same-workspace scheduler state containing controller, delta,
 implementation lane, verifier lane, ownership queue, and receipt identities.
 Live Herdr identity plus the scoped Git diff is the checkpoint.
 If P1 restarts or a lane needs replacement, inspect that checkpoint and upgrade

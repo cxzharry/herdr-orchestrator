@@ -35,9 +35,9 @@ It adds:
 - direct interruption, redirection, and inspection of each Herdr agent;
 - terminal receipts and independent acceptance evidence;
 - conditional review gates instead of always starting all nine roles;
-- recovery when P1 changes workspace or a worker pane moves or closes;
-- socket-scoped, locked pool state so concurrent controllers cannot overwrite
-  worker identity;
+- recovery when a worker pane moves inside the same Herdr workspace or closes;
+- workspace-scoped, locked pool state so concurrent controllers cannot overwrite
+  local worker identity;
 - role/task live names such as `p1_orchestrator`, `p2_impl_auth`,
   `p5_integration_owner`, `p5_deploy_local`, `p6_integration_review`,
   `p7_qc_rbac`, `p8_ui_review`, and `p9_persona_admin`.
@@ -45,12 +45,13 @@ It adds:
 P1 is a persistent controller only. P1 never implements, tests, integrates,
 reviews, commits, pushes, or deploys. Product checks and delivery mutations
 belong to workers, the Compact verifier, P5, and applicable P6-P9 reviewers.
-Each chat owns a controller scope. Multiple spaces may share one Herdr socket
-and still run same-numbered logical slots because live names follow
-`p{slot}_{role}_{task}` with deterministic suffixes when needed. Legacy
-`hdr_pN` panes migrate on the first scheduler tick without changing session,
-lane generation, receipts, or ownership. After compaction, P1 runs the
-deterministic next-action helper before routing more work.
+Each chat owns a controller scope inside one Herdr workspace. P1 and every
+worker used by that P1 stay in the same Herdr workspace. Another workspace on
+the same socket is a separate pool: never adopt, dispatch, auto-move, prompt,
+receipt, event, or session-share across workspace boundaries. Legacy `hdr_pN`
+panes migrate on the first scheduler tick only inside the same workspace without
+changing session, lane generation, receipts, or ownership. After compaction, P1
+runs the deterministic next-action helper before routing more work.
 
 Every Codex worker created by the current runtime is launched with native
 `--yolo`. Use this only in repositories and environments where bypassing
@@ -129,9 +130,9 @@ The same small benchmark also measured why routing matters:
 | Compact, cold | 299s |
 | Compact, warm pool | 112s |
 
-Cross-workspace recovery was also exercised for pool adoption, moved-pane
-rebinding, closed-worker replacement, and delayed first-session binding. The
-full discovery command above runs the complete script test suite.
+Same-workspace recovery was also exercised for moved-pane rebinding,
+closed-worker replacement, delayed first-session binding, and moved-out worker
+loss. The full discovery command above runs the complete script test suite.
 
 Inspectable result snapshots:
 
@@ -259,7 +260,7 @@ git clone https://github.com/cxzharry/herdr-orchestrator.git "$skill_root"
 ```
 
 For a reproducible runtime snapshot, check out the commit used for the latest
-cross-workspace verification:
+same-workspace pool-boundary verification:
 
 ```bash
 git -C "$skill_root" checkout d721108
@@ -434,8 +435,13 @@ applicable.
 
 ## Recovery behavior
 
-- P1 may move to another Herdr workspace and still reuse the pool.
-- A worker moved with the same session is rebound to its new pane.
+- P1 and every worker used by that P1 stay in the same Herdr workspace.
+- Another workspace on the same socket is a separate pool.
+- Never adopt, dispatch, auto-move, prompt, receipt, event, or session-share
+  across workspace boundaries.
+- If a worker moves out of the workspace, mark it lost and create or bind a
+  local replacement.
+- If a worker moves inside the same workspace, preserve the lane and session.
 - A closed P2-P4 slot is recreated without replacing healthy siblings.
 - If an active lane disappears, the run watcher emits a queued lost-lane event
   after three live checks. P1 claims that event on the next scheduler tick,
