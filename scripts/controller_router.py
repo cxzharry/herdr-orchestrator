@@ -147,8 +147,35 @@ class ControllerRouter:
 
 
 def deterministic_request_id(envelope: dict[str, Any]) -> str:
-    encoded = json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode()
+    encoded = json.dumps(
+        request_id_identity(envelope),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
     return hashlib.sha256(encoded).hexdigest()[:24]
+
+
+def request_id_identity(envelope: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": envelope["schema_version"],
+        "socket_key": envelope["socket_key"],
+        "from": immutable_agent_identity(envelope["from"]),
+        "controller": immutable_agent_identity(envelope["controller"]),
+        "request": envelope["request"],
+    }
+
+
+def immutable_agent_identity(identity: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: identity.get(key)
+        for key in (
+            "name",
+            "pane_id",
+            "workspace_id",
+            "terminal_id",
+            "session_id",
+        )
+    }
 
 
 @contextmanager
