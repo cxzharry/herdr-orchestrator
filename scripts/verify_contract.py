@@ -241,7 +241,12 @@ def verify() -> dict:
         "persistent p1": "P1 is a persistent controller only",
         "p1 boundary": "P1 never implements, tests, integrates, reviews, commits, pushes, or deploys",
         "bounded scheduler": "bounded scheduler tick",
-        "p1 inbox": "socket-scoped P1 inbox",
+        "p1 inbox": "same-workspace P1 inbox",
+        "same workspace": "P1 and every worker used by that P1 stay in the same Herdr workspace",
+        "separate pool": "Another workspace on the same socket is a separate pool",
+        "no cross-boundary sharing": "Never adopt, dispatch, auto-move, prompt, receipt, event, or session-share across workspace boundaries",
+        "moved-out lost": "If a worker moves out",
+        "moved-inside preserved": "moves inside the same workspace",
         "watcher event queue": "watcher event queue",
         "ownership queue": "ownership queue",
         "dispatch without waiting": "dispatch all ready lanes without waiting",
@@ -256,7 +261,7 @@ def verify() -> dict:
         "compact receipt": "COMPACT PASS",
         "compact receipt budget": "600 bytes",
         "compact reviewer skip": "Do not start P5-P9",
-        "compact socket state": "smaller socket-scoped scheduler state",
+        "compact workspace state": "smaller same-workspace scheduler state",
         "compact preflight": "Compact preflight is limited",
         "compact no help": "Do not run broad CLI help",
         "compact tail": "--source recent-unwrapped --lines 12",
@@ -299,6 +304,19 @@ def verify() -> dict:
     for stale_marker in ("## Warm lane pool", "token delta", "runtime telemetry", "`/status`"):
         if stale_marker in routing:
             failures.append(f"routing contains removed critical-path behavior: {stale_marker}")
+    stale_same_space_markers = {
+        "multiple spaces may share one Herdr socket",
+        "cross-workspace recovery",
+        "cross-workspace verification",
+        "P1 may move to another Herdr workspace",
+        "P1 workspace is not pool ownership",
+        "worker may live in a different workspace",
+        "adopts a unique legacy workspace ledger",
+        "two controller scopes on the same Herdr socket",
+    }
+    for marker in sorted(stale_same_space_markers):
+        if marker in runtime_corpus:
+            failures.append(f"contract contains stale cross-workspace behavior: {marker}")
 
     metadata_markers = {
         'short_description: "Run Herdr delivery from approved plan to deploy"',

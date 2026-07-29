@@ -20,9 +20,11 @@ P2-P4 may already exist as idle reusable agents. Leasing them changes runtime
 state, not this role topology; each active lease is still bound to one current
 contract, generation, pane, session, root, and owned scope.
 
-P1 owns the socket-scoped P1 inbox, bounded scheduler tick, ownership queue,
-watcher event queue, and async signals. P1 does not implement, test, integrate,
-review, commit, push, deploy, or long-wait on receipts.
+P1 owns the same-workspace P1 inbox, bounded scheduler tick, ownership queue,
+watcher event queue, and async signals. P1 and every worker used by that P1 stay
+inside one Herdr workspace. Another workspace on the same socket is a separate
+pool. P1 does not implement, test, integrate, review, commit, push, deploy, or
+long-wait on receipts.
 
 The scheduler gate branches before delivery fan-out:
 

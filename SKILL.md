@@ -3,20 +3,10 @@ name: herdr-orchestrator
 description: Use when an implementation plan is approved and Herdr is the selected execution backend; do not use while brainstorming, drafting, or approving the plan.
 ---
 
-# Herdr Orchestrator
+P1 controller only; never implements, tests, integrates, reviews, commits,
+pushes/deploys.
 
-P1 is a persistent controller only. P1 never implements, tests, integrates,
-reviews, commits, pushes, or deploys.
-
-Read [plan contract](references/plan-contract.md), then
-[routing](references/routing.md). Compact stops there. Standard inspects
-[the graph](references/delivery-flow.md) with `view_image` on
-`assets/delivery-flow.png`. Predicate refs:
-[Git integration](references/git-integration.md),
-[Review and deployment](references/review-deploy.md),
-[High assurance](references/high-assurance.md).
-
-## Model Roster
+Read [plan contract](references/plan-contract.md), then [routing](references/routing.md). Compact stops there. Standard inspects [graph](references/delivery-flow.md) with `view_image` on `assets/delivery-flow.png`. Predicate refs: [Git](references/git-integration.md), [Review/deploy](references/review-deploy.md), [High assurance](references/high-assurance.md).
 
 | Pane | Role | Model | Effort |
 |---|---|---|---|
@@ -30,23 +20,8 @@ Read [plan contract](references/plan-contract.md), then
 | P8 | Designer | `gpt-5.5` | `high` |
 | P9 | Persona | `gpt-5.5` | `medium` |
 
-## Runtime Contract
+Validate approved logical lanes; reject live pane IDs and do not plan. Bind/recover this chat's scoped P1. On every turn or compaction, run `next_controller_action.py`; P1 uses only Herdr-control helpers. Before prompting, derive `p{slot}_{role}_{task}`, reserve/rename/verify it. Default P1 is `p1_orchestrator`; use `render_agent_status.py` for status output.
 
-Validate approved logical lanes; reject live pane IDs and do not plan.
-Bind/recover this chat's scoped P1. On every turn or compaction, run
-`next_controller_action.py`; P1 may run only routing/Herdr-control helpers,
-never edit, test, integrate, review, browse, or deploy. Before a lane prompt,
-derive `p{slot}_{role}_{task}`, reserve/rename/verify it, then prompt the
-verified name. Default P1 is `p1_orchestrator`; use
-`render_agent_status.py` for status output.
+Run one bounded scheduler tick: claim the same-workspace P1 inbox, watcher event queue, ownership queue, dispatch ready lanes without waiting, and return. P1 and every worker used by that P1 stay in the same Herdr workspace; another workspace on the same socket is a separate pool. Never adopt, dispatch, auto-move, prompt, receipt, event, or session-share across workspace boundaries. Worker moves out: mark lost and create/bind local replacement. Worker moves inside the same workspace: preserve lane/session.
 
-Run one bounded scheduler tick: claim socket-scoped P1 inbox, watcher event
-queue, ownership queue, dispatch all ready lanes without waiting, and return.
-Reuse workers; cold-start only missing or incompatible capacity.
-
-Compact gate: P2-P4 change disjoint paths; a Compact verifier returns read-only
-scope, diff, and acceptance evidence. Do not start P5-P9. Standard: P5 may
-prepare integration-owned RED tests at fan-out. P5 integrates accepted worker
-outputs after validator-clean receipts. P5 writes integration and deployment
-evidence; P6-P9 review only when predicates apply. P1 routes findings to
-owners. Keep P1 output within 20 lines.
+Compact: P2-P4 change disjoint paths; verifier returns read-only scope, diff, acceptance. Do not start P5-P9. Standard: P5 may prepare integration-owned RED tests at fan-out, integrates after validator-clean receipts, and writes integration and deployment evidence; P6-P9 review only when predicates apply. P1 routes findings to owners. Keep P1 output within 20 lines.

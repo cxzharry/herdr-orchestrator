@@ -90,12 +90,13 @@ unique, for example `p1_orchestrator_a1b2`. It keeps that controller scope
 across deliveries and pane movement until ownership is explicitly transferred
 or the process exits.
 
-Controller identity is not socket-global. Multiple spaces may have independent
-P1 sessions on the same Herdr socket. Inbox, scheduler state, watcher events,
-worker pool, P5 integration ownership, and P6-P9 review receipts are keyed by
-controller scope plus contract. A worker may live in a different workspace
-after pane creation or movement, but its lease still belongs to exactly one
-controller scope.
+Controller identity is workspace-local. P1 and every worker used by that P1
+stay in the same Herdr workspace. Another workspace on the same socket is a
+separate pool: inbox, scheduler state, watcher events, worker pool, P5
+integration ownership, and P6-P9 review receipts must not cross workspace
+boundaries. If a worker moves out of the workspace, mark it lost and create or
+bind a local replacement; if it moves inside the same workspace, preserve the
+lane and session.
 
 An unnamed main chat may promote even when another scoped P1 exists. A P2-P9
 agent never guesses the nearest P1 by workspace or name; it forwards only to
@@ -237,8 +238,9 @@ Test-first scenarios:
 7. A legacy `hdr_pN` run migrates once without losing ownership or receipts.
 8. Collision and 32-character truncation are deterministic.
 9. Contract, asset, and exact-render validators pass with the naming legend.
-10. Two spaces promote independent P1 sessions, dispatch same-numbered logical
-    slots without live-name collision, and never reuse another scope's P5-P9.
+10. Two controller scopes inside the same workspace dispatch same-numbered
+    logical slots without live-name collision, while a second workspace on the
+    same socket remains a separate pool with no shared P5-P9.
 11. After compaction, P1 routes integration verification to P5 and applicable
     QC/design to P7/P8 without editing or testing in the controller pane.
 

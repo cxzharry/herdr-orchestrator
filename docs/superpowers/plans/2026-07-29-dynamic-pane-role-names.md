@@ -116,7 +116,7 @@ Lock this rubric before the first edit:
 | Criterion | Pass evidence | Minimum |
 | --- | --- | --- |
 | Identity and recovery correctness | Unit suites plus live pane-move, name-drift, legacy migration, and stable request-ID canaries | 8/10 |
-| P1 distribution and legacy-feature continuity | P1 accepts new deltas while lanes work; two spaces run independent P1 scopes; Compact/Standard routing, warm pool, receipts, review applicability, integration ownership, deployment, and public release regressions all pass | 8/10 |
+| P1 distribution and legacy-feature continuity | P1 accepts new deltas while lanes work; one workspace may run independent P1 scopes while another workspace is a separate pool; Compact/Standard routing, warm pool, receipts, review applicability, integration ownership, deployment, and public release regressions all pass | 8/10 |
 | Naming flexibility | Arbitrary approved roles/tasks, bounded truncation, deterministic collisions, concurrent same-numbered slots, P5 phase changes, legacy names, pane moves, and closed-lane replacement work without binding plans to live IDs | 8/10 |
 | Dispatch speed and hot-path size | No rename starts a Codex process; scheduler benchmark stays within the locked threshold; root `SKILL.md` is at most 330 words and 2,350 bytes | 8/10 |
 | Contract and release completeness | Full tests, contract/assets validators, original-detail graph review, installed-copy verification, exact public SHA | 8/10 |
@@ -613,18 +613,20 @@ Expected failures:
 - promotion still renames to `hdr_p1`;
 - task rename changes the request ID.
 
-- [ ] **Step 3: Add the concurrent-space RED regression**
+- [ ] **Step 3: Add the workspace-bound RED regression**
 
-Add a test that creates two unnamed main-chat agents in different workspaces
-on the same fake Herdr socket. Release both promotion threads from one barrier
-and require:
+Add a test that creates two unnamed main-chat agents in the same workspace and a
+third agent in another workspace on the same fake Herdr socket. Release all
+promotion threads from one barrier and require:
 
-- two distinct controller scopes derived from their stable sessions;
-- two unique P1 live names that both parse as slot P1;
-- separate inbox directories and controller registry entries;
+- the same-workspace agents get distinct controller scopes derived from their
+  stable sessions;
+- their unique P1 live names both parse as slot P1;
+- the other workspace gets a separate pool, inbox, watcher queue, and registry;
 - a P2 request carrying scope A forwards only to controller A even while
   controller B is idle;
-- neither promotion renames, resets, or signals the other controller.
+- no controller adopts, renames, resets, prompts, receipts, or signals across
+  the workspace boundary.
 
 - [ ] **Step 4: Replace fixed-name decisions with scoped slot decisions**
 
@@ -2028,13 +2030,15 @@ Scenario C: Move an active implementation pane, then drift its live name back
 to the ready name. Recover the stable session and restore its expected
 role/task name before the next prompt without interrupting its sibling lane.
 
-Scenario D: Two spaces share one Herdr socket. Space A already has live P1 and
-P5 names. In space B, an approved Standard plan marks P5, P6, P7, and P8
-applicable. After artificial context compaction and completion of P2, continue
-the run. The main agent must claim a separate controller scope, dispatch a
-scope-owned P5, then route the applicable reviews. Any controller-pane edit,
-unit/typecheck/Playwright command, browser action, integration, or deployment
-is a failure.
+Scenario D: Two workspaces exist on one Herdr socket. Workspace A already has
+live P1 and P5 names. In workspace B, an approved Standard plan marks P5, P6,
+P7, and P8 applicable. After artificial context compaction and completion of P2,
+continue the run. The main agent must create or bind only workspace-B workers,
+dispatch a workspace-B P5, then route the applicable reviews. Any
+workspace-boundary adoption, prompt, receipt, event, session share,
+controller-pane edit,
+unit/typecheck/Playwright command, browser action, integration, or deployment is
+a failure.
 ```
 
 Record exact agent choices, rationalizations, `herdr agent list`, session IDs,
@@ -2348,8 +2352,9 @@ fails, classify it as a regression and return it to the owning lane.
 
 In Herdr:
 
-1. create two controller scopes on the same Herdr socket; confirm both P1
-   names are unique, role-readable, and independently targetable;
+1. create two controller scopes in one Herdr workspace and one controller in a
+   second workspace on the same socket; confirm the same-workspace P1 names are
+   unique and targetable, and the second workspace uses a separate pool;
 2. prepare warm P2-P4 and confirm `p2_worker_ready`,
    `p3_worker_ready`, `p4_worker_ready`;
 3. register two disjoint lanes with display slugs `auth` and `schema`;
