@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -95,6 +96,20 @@ class AssignAgentNameTests(unittest.TestCase):
             "p2_impl_auth",
         )
         self.assertNotIn("name_assignment", saved["lanes"]["auth-api"])
+
+    def test_direct_cli_help_imports_without_package_context(self):
+        repo_root = Path(__file__).resolve().parents[1]
+
+        result = subprocess.run(
+            ["python3", "scripts/assign_agent_name.py", "--help"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--control-state", result.stdout)
 
     def test_stale_generation_fails_without_publishing(self):
         client = FakeHerdr(
