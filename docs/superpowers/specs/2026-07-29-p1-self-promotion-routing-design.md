@@ -1,6 +1,6 @@
 # Persistent P1 Orchestration Design
 
-**Status:** Approved direction, pending written-spec review
+**Status:** Approved
 
 **Scope:** Make the current eligible chat agent a persistent, non-blocking P1
 controller; keep implementation, verification, integration, review, and deploy
@@ -310,6 +310,68 @@ Live canary:
 5. Submit an overlapping delta and verify it queues behind its owner.
 6. Complete receipts through the watcher without a blocking P1 wait.
 7. Verify P5 integrates and runs acceptance while P1 only routes.
+
+## Graph Contract
+
+The delivery graph is part of the runtime contract, not decorative
+documentation. Update the editable Excalidraw source, canonical SVG, rendered
+PNG, manifest digests, asset validator, and delivery-flow reference together.
+
+The revised graph must separate:
+
+- the persistent P1 control plane: request inbox, scheduler tick, ownership and
+  dependency state, watcher event queue, dispatch, and finding routing;
+- the P2-P9 delivery plane: implementation, independent verification,
+  integration, tests, review, publish, and deploy;
+- non-blocking event signals from the run-scoped watcher;
+- dispatchable, dependency-blocked, capacity-blocked, and plan-required
+  outcomes for new user deltas;
+- Compact verification by another worker and Standard convergence through P5
+  and the applicable P6-P9 gates.
+
+P1 must not appear on the product mutation, test, integration, review, publish,
+or deploy path. P5 owns integration and deployment. The rendered PNG must be
+visually inspected after deterministic rendering; hash verification alone is
+insufficient.
+
+## Locked Evaluation Contract
+
+Use the Meta Harness in `IMPROVE` mode. Lock the rubric before implementation
+and preserve evaluator independence from implementers.
+
+Primary baseline:
+
+- public Herdr commit `b80be3e36fd4e1a00e22543b6bc913212085079e`,
+  whose runtime is equivalent to `d721108`;
+- this baseline measures regression quality, total delivery time, and the
+  blocking behavior that prevents P1 from accepting more work.
+
+Secondary baseline:
+
+- original Superpowers execution without Herdr;
+- use it as a quality and end-to-end wall-clock reference on the same bounded
+  workload, not as a P1 responsiveness reference because it has no persistent
+  Herdr controller.
+
+Run at least three measured trials per applicable implementation. The workload
+must keep two independent implementation lanes active, then inject:
+
+1. a disjoint delta that should dispatch to P4;
+2. an overlapping delta that must queue behind its owner;
+3. a plan-required delta that must not stop existing lanes.
+
+Measure:
+
+- P1 time-to-classify and time-to-dispatch without waiting for active lanes;
+- total wall-clock for the complete accepted workload;
+- acceptance, scope, identity, receipt, review, and recovery failures;
+- P1 product mutation or product-test actions, which must remain zero;
+- graph source/render/manifest consistency and visual correctness.
+
+Do not claim that Herdr is universally faster. Success means the revised
+runtime materially improves dynamic intake and P1 responsiveness, does not
+regress the locked acceptance suite, and remains competitive on total delivery
+time for the tested workload.
 
 ## Non-Goals
 
