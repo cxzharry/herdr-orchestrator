@@ -249,6 +249,41 @@ class AssignAgentNameTests(unittest.TestCase):
         saved = json.loads(other.read_text(encoding="utf-8"))
         self.assertEqual(saved["lanes"]["auth-review"]["agent_name"], "p2_worker_ready")
 
+    def test_worker_reserves_own_name_after_p1_finalizes_same_controller_scope(self):
+        registry = RuntimeRegistry(self.root, "sock-a")
+        p1 = registry.reserve_visible_name(
+            controller_scope="scope-a",
+            slot="P1",
+            role="orchestrator",
+            reservation_token="controller-token",
+        )
+        registry.finalize_visible_name(
+            controller_scope="scope-a",
+            reservation_token="controller-token",
+            session_id="session-p1",
+            name=p1["name"],
+        )
+        client = FakeHerdr(
+            [
+                {
+                    "name": "p1_orchestrator",
+                    "pane_id": "w1:p1",
+                    "agent_session": {"value": "session-p1"},
+                },
+                {
+                    "name": "p2_worker_ready",
+                    "pane_id": "w1:p2",
+                    "agent_session": {"value": "session-p2"},
+                },
+            ]
+        )
+
+        result = assign_lane_name(self.path, "auth-api", client, registry=registry)
+
+        self.assertEqual(client.calls, [("rename", "w1:p2", "p2_impl_auth")])
+        self.assertEqual(result["agent_name"], "p2_impl_auth")
+        self.assertEqual(result["expected_agent_name"], "p2_impl_auth")
+
 
 if __name__ == "__main__":
     unittest.main()

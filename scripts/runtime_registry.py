@@ -35,15 +35,16 @@ class RuntimeRegistry:
         live_names: Collection[str] = (),
     ) -> dict:
         def mutate(state: dict) -> dict:
-            registered = state["controller_scopes"].get(controller_scope)
-            if registered is not None:
-                return copy.deepcopy(registered)
+            existing = _record_for_token(state, reservation_token)
+            if existing is not None:
+                if existing["controller_scope"] != controller_scope:
+                    raise RegistryError("reservation token belongs to a different controller scope")
+                return copy.deepcopy(existing)
 
-            pending = _pending_for_scope(state, controller_scope)
+            reservation_key = _reservation_key(controller_scope, slot, role, task)
+            pending = _pending_for_key(state, reservation_key)
             if pending is not None:
-                if pending["reservation_token"] != reservation_token:
-                    raise RegistryError("pending reservation belongs to a different token")
-                return copy.deepcopy(pending)
+                raise RegistryError("pending reservation belongs to a different token")
 
             occupied = set(live_names)
             occupied.update(state["visible_names"].keys())
@@ -58,6 +59,7 @@ class RuntimeRegistry:
                 "controller_scope": controller_scope,
                 "session_id": None,
                 "slot": slot.upper(),
+                "reservation_key": reservation_key,
                 "reservation_token": reservation_token,
                 "name": name,
                 "status": "pending",
@@ -93,15 +95,17 @@ class RuntimeRegistry:
             )
             record["session_id"] = session_id
             record["status"] = "finalized"
-            state["controller_scopes"][controller_scope] = {
-                "controller_scope": controller_scope,
-                "session_id": session_id,
-                "slot": record["slot"],
-                "reservation_token": reservation_token,
-                "name": name,
-                "status": "finalized",
-            }
-            return copy.deepcopy(state["controller_scopes"][controller_scope])
+            if record["slot"] == "P1":
+                state["controller_scopes"][controller_scope] = {
+                    "controller_scope": controller_scope,
+                    "session_id": session_id,
+                    "slot": record["slot"],
+                    "reservation_token": reservation_token,
+                    "name": name,
+                    "status": "finalized",
+                }
+                return copy.deepcopy(state["controller_scopes"][controller_scope])
+            return copy.deepcopy(record)
 
         return self._update(mutate)
 
@@ -192,10 +196,29 @@ class RuntimeRegistry:
             return result
 
 
-def _pending_for_scope(state: dict, controller_scope: str) -> dict | None:
+def _reservation_key(
+    controller_scope: str,
+    slot: str,
+    role: str,
+    task: str | None,
+) -> str:
+    return json.dumps(
+        [controller_scope, slot.upper(), role, task],
+        separators=(",", ":"),
+    )
+
+
+def _record_for_token(state: dict, reservation_token: str) -> dict | None:
+    for record in state["visible_names"].values():
+        if record["reservation_token"] == reservation_token:
+            return record
+    return None
+
+
+def _pending_for_key(state: dict, reservation_key: str) -> dict | None:
     for record in state["visible_names"].values():
         if (
-            record["controller_scope"] == controller_scope
+            record.get("reservation_key") == reservation_key
             and record["status"] == "pending"
         ):
             return record
