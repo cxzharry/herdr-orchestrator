@@ -15,6 +15,13 @@ STATE_UPDATER = SKILL_ROOT / "scripts" / "set_lane_state.py"
 STATE_CREATOR = SKILL_ROOT / "scripts" / "create_control_state.py"
 RECEIPT_WRITER = SKILL_ROOT / "scripts" / "write_lane_receipt.py"
 LANE_REGISTRAR = SKILL_ROOT / "scripts" / "register_lane.py"
+AGENT_NAMING = SKILL_ROOT / "scripts" / "agent_naming.py"
+RUNTIME_REGISTRY = SKILL_ROOT / "scripts" / "runtime_registry.py"
+NAME_ASSIGNER = SKILL_ROOT / "scripts" / "assign_agent_name.py"
+STATUS_RENDERER = SKILL_ROOT / "scripts" / "render_agent_status.py"
+NEXT_ACTION = SKILL_ROOT / "scripts" / "next_controller_action.py"
+MAX_SKILL_WORDS = 330
+MAX_SKILL_BYTES = 2350
 
 EXPECTED_PANES = {
     "P1": ("Orchestrator", "gpt-5.6-sol", "high"),
@@ -110,8 +117,10 @@ def verify() -> dict:
 
     if "references/runtime-contract.md" in skill:
         failures.append("SKILL.md must not require the monolithic runtime contract")
-    if len(skill.split()) > 350:
-        failures.append("SKILL.md must contain no more than 350 words")
+    if len(skill.split()) > MAX_SKILL_WORDS:
+        failures.append(f"SKILL.md must contain no more than {MAX_SKILL_WORDS} words")
+    if len(skill.encode("utf-8")) > MAX_SKILL_BYTES:
+        failures.append(f"SKILL.md must contain no more than {MAX_SKILL_BYTES} bytes")
     if not POOL_HELPER.is_file():
         failures.append("missing deterministic worker-pool helper")
     if not RECEIPT_WAITER.is_file():
@@ -124,6 +133,30 @@ def verify() -> dict:
         failures.append("missing deterministic terminal receipt writer")
     if not LANE_REGISTRAR.is_file():
         failures.append("missing atomic on-demand lane registrar")
+    if not AGENT_NAMING.is_file():
+        failures.append("missing pure dynamic agent-naming helper")
+    if not RUNTIME_REGISTRY.is_file():
+        failures.append("missing socket-global scoped runtime registry")
+    if not NAME_ASSIGNER.is_file():
+        failures.append("missing verified rename-before-prompt helper")
+    if not STATUS_RENDERER.is_file():
+        failures.append("missing bounded P1 status renderer")
+    if not NEXT_ACTION.is_file():
+        failures.append("missing deterministic post-compaction action helper")
+
+    runtime_markers = {
+        "controller visible name": "p1_orchestrator",
+        "dynamic name format": "p{slot}_{role}_{task}",
+        "rename before prompt": "reserve/rename/verify",
+        "compaction boundary": "On every turn or compaction",
+        "next action": "next_controller_action.py",
+        "name drift": "LANE_NAME_DRIFT",
+        "status output": "render_agent_status.py",
+    }
+    runtime_corpus = "\n".join([skill, *reference_text.values()])
+    for name, marker in runtime_markers.items():
+        if marker not in runtime_corpus:
+            failures.append(f"runtime contract is missing {name}: {marker}")
 
     routing = reference_text.get("references/routing.md", "")
     plan_contract = " ".join(

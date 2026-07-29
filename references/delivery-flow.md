@@ -14,6 +14,8 @@ The graph shows two distinct planes: a persistent P1 control plane and the
 P2-P9 delivery plane. It is the maximum standard-gate topology, not
 unconditional concurrency. An approved compact local task may stop after ready
 workers plus a read-only Compact verifier; it does not start P5-P9.
+The legend states that live names use `p{slot}_{role}_{task}` while status
+stays in Herdr.
 P2-P4 may already exist as idle reusable agents. Leasing them changes runtime
 state, not this role topology; each active lease is still bound to one current
 contract, generation, pane, session, root, and owned scope.

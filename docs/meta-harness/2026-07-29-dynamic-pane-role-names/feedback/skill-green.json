@@ -1,0 +1,250 @@
+{
+  "contract": "dynamic-pane-role-names-20260729",
+  "generation": "g2",
+  "lane": "contract-assets",
+  "phase": "GREEN",
+  "scenarios": {
+    "A": {
+      "argv_model_evidence": {
+        "cwd": "/Users/haido/worktrees/herdr-dynamic-contract-assets",
+        "ephemeral": true,
+        "mcp_disabled": [
+          "pencil",
+          "notion",
+          "figma",
+          "atlassian",
+          "openaiDeveloperDocs"
+        ],
+        "memory_history_search_performed": false,
+        "requested_effort": "medium",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "Use Standard gate because auth/schema are active; Compact is ineligible.",
+        "Run one bounded P1 scheduler tick: claim scope/inbox/events/ownership, do first-tick legacy-name migration, dispatch all READY lanes, return without waiting.",
+        "Do not block P1 on auth/schema; keep P2 and P3 ACTIVE and lease the independent docs lane to idle compatible P4.",
+        "Before each visible/prompted lane, use assign_agent_name.py reserve/rename/verify, then prompt only the verified name without --wait.",
+        "Use render_agent_status.py-style status so the Herdr list exposes slot, role, task, and live state."
+      ],
+      "failures": [],
+      "herdr_agent_list_after": [
+        "P1 p1_orchestrator idle",
+        "P2 p2_impl_auth working",
+        "P3 p3_impl_schema working",
+        "P4 p4_impl_docs working"
+      ],
+      "pass": true,
+      "rationalizations": [
+        "P1 is controller-only and cannot implement, wait synchronously, or use agent prompt --wait when dispatching independent lanes.",
+        "P2/P3 are busy on existing active lanes, so reusing them would multiplex unrelated work through occupied agents; P4 is the compatible idle P2-P4 worker capacity.",
+        "Dynamic names are display handles, not stable identity; stable routing remains slot/session/lane/generation/scope in control-state.",
+        "Legacy hdr_pN names may be migrated on first tick without resetting working sessions, preserving current auth/schema work.",
+        "Docs is independent, so it is READY and can be fanned out while auth and schema continue."
+      ],
+      "scenario": "A",
+      "session_ids": {
+        "p1_orchestrator": "s-p1",
+        "p2_impl_auth": "s-auth",
+        "p3_impl_schema": "s-schema",
+        "p4_impl_docs": "s-ready"
+      }
+    },
+    "B": {
+      "argv_model_evidence": {
+        "cwd": "/Users/haido/worktrees/herdr-dynamic-contract-assets",
+        "ephemeral": false,
+        "mcp_disabled": [],
+        "memory_history_search_performed": false,
+        "requested_effort": "high",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "Use Standard gate because integration/deployment applies.",
+        "First-tick migrate legacy hdr_p1 to p1_orchestrator without changing session s-p1.",
+        "Treat hdr_p5 session s-p5-impl as completed optional implementation only; do not prompt it into Integration Owner.",
+        "Preserve the restart boundary by starting or resetting P5 into a fresh session before Integration Owner work.",
+        "Before prompting the fresh P5 lane, reserve/rename/verify the dynamic name, then prompt only the verified name.",
+        "Use a visible P5 name that encodes the active phase, e.g. p5_integration_owner_local_deploy, so the Herdr list shows the required fresh integration/deployment phase."
+      ],
+      "failures": [],
+      "herdr_agent_list_after": [
+        {
+          "name": "p1_orchestrator",
+          "session": "s-p1",
+          "slot": "P1",
+          "status": "idle"
+        },
+        {
+          "name": "p5_integration_owner_local_deploy",
+          "previous_session": "s-p5-impl",
+          "session": "s-p5-fresh-integration",
+          "slot": "P5",
+          "status": "active"
+        }
+      ],
+      "pass": true,
+      "rationalizations": [
+        "routing.md says live names are display handles and must use p{slot}_{role}_{task}.",
+        "routing.md says legacy first-tick migration may rename working P1-P9 agents without resetting sessions.",
+        "routing.md says if an existing P5 Worker 4 session would change roles, P5 must restart first; a prompt claiming a role change is not a clean authority boundary.",
+        "review-deploy.md says P5 owns deployment or local-runtime identity and writes integration/deployment evidence.",
+        "SKILL.md model roster requires P5 gpt-5.5 with high effort."
+      ],
+      "scenario": "B",
+      "session_ids": {
+        "p1": "s-p1",
+        "p5_integration_owner_required": "s-p5-fresh-integration",
+        "p5_optional_impl_completed": "s-p5-impl",
+        "p5_restart_boundary_preserved": true,
+        "p5_reused_old_session_for_role_change": false
+      }
+    },
+    "C": {
+      "argv_model_evidence": {
+        "cwd": "/Users/haido/worktrees/herdr-dynamic-contract-assets",
+        "ephemeral": false,
+        "mcp_disabled": true,
+        "memory_history_search_performed": false,
+        "requested_effort": "medium",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "match auth by stable session_id=s-auth, not by stale pane/name",
+        "classify pane change as LANE_MOVED and rebind auth pane_id to w9:p4",
+        "classify p2_worker_ready/hdr_p2 live handle as LANE_NAME_DRIFT for active lane auth",
+        "run assign_agent_name semantics for lane auth before any next prompt and restore expected_agent_name=p2_impl_auth",
+        "do not reset, move, rename, prompt, or wait on sibling schema lane"
+      ],
+      "failures": [],
+      "herdr_agent_list_after": [
+        {
+          "agent_name": "p2_impl_auth",
+          "lane_id": "auth",
+          "pane_id": "w9:p4",
+          "session_id": "s-auth",
+          "slot": "P2",
+          "status": "working"
+        },
+        {
+          "agent_name": "hdr_p3",
+          "lane_id": "schema",
+          "session_id": "s-schema",
+          "slot": "P3",
+          "status": "working"
+        }
+      ],
+      "pass": true,
+      "rationalizations": [
+        "Routing states live names are display handles; stable identity is session, slot, lane, generation, pane, root/base, and owned scope.",
+        "Watcher LANE_MOVED keeps the same generation when the same session_id appears under a new pane_id.",
+        "Name drift is repaired through the same assignment helper, which reserves, renames by pane_id, verifies by session_id, then publishes agent_name/expected_agent_name/pane_id.",
+        "Outside legacy migration, a working sibling is not renamed merely to improve wording."
+      ],
+      "scenario": "C",
+      "session_ids": {
+        "auth": "s-auth",
+        "schema": "s-schema"
+      }
+    },
+    "D": {
+      "argv_model_evidence": {
+        "cwd": "/Users/haido/worktrees/herdr-dynamic-contract-assets",
+        "ephemeral": true,
+        "mcp_disabled": [
+          "pencil",
+          "notion",
+          "figma",
+          "atlassian",
+          "openaiDeveloperDocs"
+        ],
+        "memory_history_search_performed": false,
+        "requested_effort": "medium",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": {
+        "controller_name": "p1_orchestrator",
+        "controller_scope": "claim new Space-B controller scope, not Space-A legacy scope",
+        "gate": "Standard",
+        "p5_name": "p5_integration_owner_auth",
+        "post_compaction_action": "run next_controller_action.py, then one bounded scheduler tick",
+        "review_routing": [
+          "P5 smoke + P6 after integration_artifact_ready",
+          "P7 + P8 after local_runtime_ready or deployment_ready",
+          "P9 not routed because not marked applicable"
+        ]
+      },
+      "controller_actions": [
+        "claim Space-B controller scope and socket-scoped P1 inbox",
+        "migrate or assign only Space-B controller identity if needed",
+        "process watcher event for P2 terminal receipt",
+        "accept current-generation P2 receipt if validator-clean",
+        "register P5 lane JSON for Space-B contract",
+        "reserve, rename, verify, and publish p5_integration_owner_auth via assign_agent_name.py",
+        "prompt verified P5 without --wait",
+        "after P5 artifact receipt, route P5 smoke and P6 in parallel",
+        "after runtime/deployment predicate is ready, route P7 and P8 in parallel"
+      ],
+      "failures": [],
+      "herdr_agent_list_after": [
+        {
+          "name": "hdr_p1",
+          "session": "s-a-p1",
+          "space": "A",
+          "unchanged": true
+        },
+        {
+          "name": "hdr_p5",
+          "session": "s-a-p5",
+          "space": "A",
+          "unchanged": true
+        },
+        {
+          "controller_scope": "space-b-scope",
+          "name": "p1_orchestrator",
+          "session": "s-b-p1",
+          "space": "B"
+        },
+        {
+          "name": "p2_impl_auth",
+          "session": "s-b-p2",
+          "space": "B",
+          "state": "ACCEPTED"
+        },
+        {
+          "controller_scope": "space-b-scope",
+          "name": "p5_integration_owner_auth",
+          "session": "new-session-from-herdr-start",
+          "space": "B",
+          "state": "ACTIVE"
+        }
+      ],
+      "pass": true,
+      "rationalizations": [
+        "Live names are display handles; stable identity is controller_scope plus slot/lane/generation/session/root/base/scope.",
+        "Space-A hdr_p1 and hdr_p5 remain untouched; B must not rename another live agent.",
+        "P2 is done, so Standard next action with applicable unaccepted P5 is DISPATCH_GATE for P5.",
+        "P5 must be a fresh Integration Owner authority before publication; reviews are read-only and predicate-gated.",
+        "Controller performs only routing/name assignment/control-state actions."
+      ],
+      "scenario": "D",
+      "session_ids": {
+        "space_a_p1": "s-a-p1",
+        "space_a_p5": "s-a-p5",
+        "space_b_p1": "s-b-p1",
+        "space_b_p2": "s-b-p2",
+        "space_b_p5": "new-session-from-herdr-start"
+      }
+    }
+  },
+  "schema_version": "herdr-skill-pressure/v1",
+  "source_files": {
+    "A": "/tmp/herdr-contract-assets-pressure/recovery-a-green-final.jsonl",
+    "B": "/tmp/herdr-contract-assets-pressure/strict-b-green-final.out",
+    "C": "/tmp/herdr-contract-assets-pressure/strict-c-green-final.out",
+    "D": "/tmp/herdr-contract-assets-pressure/recovery-d-green-final.jsonl"
+  }
+}

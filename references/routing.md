@@ -9,10 +9,12 @@ evidence. Missing, stale, or contradictory inputs return BLOCKED upstream.
 Do not brainstorm, redesign the product, or write a plan.
 
 P1 is a persistent controller only. P1 never implements, tests, integrates,
-reviews, commits, pushes, or deploys. A P1 turn is one bounded scheduler tick:
-claim the socket-scoped P1 inbox, claim watcher event queue entries, reconcile
-ownership queue state, dispatch all ready lanes without waiting, and return
-active, queued, blocked, and newly dispatched work.
+reviews, commits, pushes, or deploys. On every turn or compaction, run
+`next_controller_action.py`; do not continue from memory. A P1 turn is one
+bounded scheduler tick: claim this chat's controller scope and socket-scoped P1
+inbox, claim watcher event queue entries, reconcile ownership queue state,
+dispatch all ready lanes without waiting, and return active, queued, blocked,
+and newly dispatched work.
 
 Confirm `HERDR_ENV=1`. Inspect the named workspace and current agents with the
 bounded preflight below. Never infer an ID from visual pane order and do not
@@ -39,6 +41,30 @@ The helper creates `receipts/` and `evidence/`. The ledger stores only material
 transitions and no secrets. Each lane records its stable `lane_id`, generation,
 role, live agent/pane/session, input identity, owned scope, state, and receipt
 path. Do not handcraft control-state JSON.
+
+## Dynamic live names
+
+Live Herdr names are display handles, not stable identity. Stable identity is
+controller scope, slot, lane, generation, pane, session, root, base, and owned
+scope. Format every visible name as `p{slot}_{role}_{task}`. The default
+controller visible name is `p1_orchestrator`; concurrent spaces append the
+shortest deterministic suffix. Status stays in Herdr state, not the name.
+Use `render_agent_status.py`; do not hand-format or poll broad status.
+
+First tick: ensure P1 name -> migrate legacy live lanes -> process events.
+Dispatch: register lane -> reserve name -> rename -> verify -> publish ->
+prompt. Before each lane prompt, call `assign_agent_name.py` to
+reserve/rename/verify the expected name, then prompt only the verified name.
+Name selection must consider live Herdr names and pending registry reservations
+in `runtime_registry.py`; do not rename another live agent.
+
+Approved routing metadata supplies `display_role` and `display_slug`. If absent,
+derive from role and lane ID; never guess product meaning. Legacy `hdr_pN`
+names map only to slots. Legacy first-tick migration may rename working P1-P9
+agents without resetting sessions and preserves `dispatch_agent_name`. Outside
+that migration, do not rename a working lane merely to improve wording.
+Repair only when live state drifts from the expected name; route
+`LANE_NAME_DRIFT` to the same assignment helper.
 
 ## Launch invariant
 
@@ -223,14 +249,13 @@ python3 <skill-root>/scripts/manage_worker_pool.py bind --contract-id \
 ```
 
 The default ledger is
-`~/.codex/herdr-pools/active-<socket-key>.json`: global across workspaces in one
-Herdr session, isolated across Herdr sockets. Live `hdr_p2`-`hdr_p4` names are
-session-global. P1's workspace and pane are controller locations, not pool
-ownership. A P1 recreated in another workspace must run `prepare` normally;
-the helper atomically adopts a unique legacy workspace ledger, resolves workers
-by stable name, terminal, and session, and keeps their current panes. Never copy
-a ledger to the new workspace or move healthy workers just to colocate them
-with P1.
+`~/.codex/herdr-pools/active-<socket-key>.json`: scoped by controller inside one
+Herdr socket. Live `p2_worker_ready`-style names are display handles. P1's
+workspace and pane are controller locations, not pool ownership. A P1 recreated
+in another workspace must run `prepare` normally; the helper atomically adopts a
+unique legacy workspace ledger, resolves workers by slot, terminal, and
+session, and keeps their current panes. Never copy a ledger to the new
+workspace or move healthy workers just to colocate them with P1.
 
 `prepare` updates a moved worker's pane when its session is unchanged. It
 recreates only a closed slot and preserves healthy siblings. It still refuses

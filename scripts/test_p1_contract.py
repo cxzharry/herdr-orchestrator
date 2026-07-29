@@ -61,6 +61,13 @@ class PersistentP1BoundaryTests(unittest.TestCase):
         self.assertNotIn("Use one filesystem wait for the blocking wave", self.references["routing.md"])
         self.assertIn("P1 does not call await_receipts.py", self.references["routing.md"])
 
+    def test_dynamic_names_are_runtime_display_not_stable_identity(self):
+        self.assertIn("p1_orchestrator", self.skill)
+        self.assertIn("reserve/rename/verify", self.skill)
+        self.assertIn("On every turn or compaction", self.skill)
+        self.assertIn("next_controller_action.py", self.skill)
+        self.assertIn("p{slot}_{role}_{task}", self.references["routing.md"])
+
     def test_delivery_graph_separates_control_and_delivery_planes(self):
         for marker in [
             "PERSISTENT P1 CONTROL PLANE",

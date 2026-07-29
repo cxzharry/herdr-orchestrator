@@ -1,0 +1,285 @@
+{
+  "contract": "dynamic-pane-role-names-20260729",
+  "generation": "g2",
+  "lane": "contract-assets",
+  "phase": "RED",
+  "scenarios": {
+    "A": {
+      "argv_model_evidence": {
+        "cwd": "/tmp/herdr-contract-assets-red-base",
+        "ephemeral": null,
+        "mcp_disabled": "scoped only when explicitly outside the docs lane contract",
+        "memory_history_search_performed": false,
+        "requested_effort": "medium",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "Use one bounded P1 scheduler tick.",
+        "Keep hdr_p2/s-auth on auth and hdr_p3/s-schema on schema; do not wait on either.",
+        "Lease idle hdr_p4/s-ready to the independent docs lane and prompt it without --wait.",
+        "Do not start P5-P9 for this arrival unless the approved plan predicates require them.",
+        "Requested worker launch/lease contract for docs lane: gpt-5.5, medium effort, --yolo, scoped MCP disabled only if outside the docs lane contract."
+      ],
+      "failures": [
+        "Dispatch behavior passes, but the current pre-dynamic-name contract does not make raw Herdr agent list names reveal each pane's role and current task.",
+        "With the given live names, Herdr list would still show hdr_p2/hdr_p3/hdr_p4 rather than task-bearing names such as auth/schema/docs."
+      ],
+      "herdr_agent_list_after": [
+        {
+          "agent": "hdr_p1",
+          "current_task": "route scheduler tick",
+          "role": "orchestrator",
+          "session_id": "s-p1",
+          "status": "idle"
+        },
+        {
+          "agent": "hdr_p2",
+          "current_task": "auth lane",
+          "role": "implementation",
+          "session_id": "s-auth",
+          "status": "working"
+        },
+        {
+          "agent": "hdr_p3",
+          "current_task": "schema lane",
+          "role": "implementation",
+          "session_id": "s-schema",
+          "status": "working"
+        },
+        {
+          "agent": "hdr_p4",
+          "current_task": "docs lane",
+          "role": "implementation",
+          "session_id": "s-ready",
+          "status": "working"
+        }
+      ],
+      "pass": false,
+      "rationalizations": [
+        "P1 is controller-only and dispatches all READY independent lanes without blocking on active lanes.",
+        "P2-P4 are the compatible warm worker pool; hdr_p4 is idle, so reuse beats cold-start.",
+        "One live lease owns one lane, so auth/schema keep their sessions and docs gets hdr_p4.",
+        "The current pre-dynamic-name skill can dispatch correctly, but the provided live Herdr names hdr_p2/hdr_p3/hdr_p4 do not themselves expose each pane's current task."
+      ],
+      "scenario": "A",
+      "session_ids": {
+        "auth": "s-auth",
+        "docs": "s-ready",
+        "p1": "s-p1",
+        "schema": "s-schema"
+      }
+    },
+    "B": {
+      "argv_model_evidence": {
+        "cwd": "/private/tmp/herdr-contract-assets-red-base",
+        "ephemeral": false,
+        "mcp_disabled": true,
+        "memory_history_search_performed": false,
+        "requested_effort": "high",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "accept hdr_p5/s-p5-impl as completed optional implementation evidence only",
+        "do not reprompt hdr_p5/s-p5-impl into Integration Owner",
+        "start a fresh P5 Integration Owner session before integration/deployment authority",
+        "start local deployment from the fresh P5 Integration Owner session",
+        "keep old and new P5 phases visible as separate Herdr list entries"
+      ],
+      "failures": [],
+      "herdr_agent_list_after": [
+        {
+          "agent": "hdr_p1",
+          "phase": "orchestrator",
+          "session": "s-p1",
+          "slot": "P1",
+          "status": "idle"
+        },
+        {
+          "agent": "hdr_p5",
+          "phase": "optional_implementation",
+          "session": "s-p5-impl",
+          "slot": "P5",
+          "status": "done"
+        },
+        {
+          "agent": "p5_integration_owner",
+          "phase": "local_deployment",
+          "session": "s-p5-integration-owner-new",
+          "slot": "P5",
+          "status": "active"
+        }
+      ],
+      "pass": true,
+      "rationalizations": [
+        "routing.md says an existing P5 Worker 4 session changing roles must restart first; a prompt claiming role change is not a clean authority boundary",
+        "SKILL.md model roster assigns P5 Worker 4 then Integration Owner with gpt-5.5/high",
+        "review-deploy.md says P5 owns integration and deployment evidence; reviewers do not deploy",
+        "routing.md requires new sessions to receive only locked contract and accepted receipt identities"
+      ],
+      "scenario": "B",
+      "session_ids": {
+        "p1": "s-p1",
+        "p5_integration_owner": "s-p5-integration-owner-new",
+        "p5_optional_implementation": "s-p5-impl"
+      }
+    },
+    "C": {
+      "argv_model_evidence": {
+        "cwd": "/tmp/herdr-contract-assets-red-base",
+        "ephemeral": false,
+        "mcp_disabled": [
+          "pencil",
+          "notion",
+          "figma",
+          "atlassian",
+          "openaiDeveloperDocs"
+        ],
+        "memory_history_search_performed": false,
+        "requested_effort": "medium",
+        "requested_model": "gpt-5.5",
+        "yolo": true
+      },
+      "choices": [
+        "recover_auth_by_session_id_not_pane_or_live_name",
+        "update_auth_pane_id_to_w9:p4",
+        "do_not_restart_or_prompt_s_schema",
+        "current_skill_would_rename_hdr_p2_drift_to_ready_name_not_role_task_name"
+      ],
+      "failures": [
+        "expected role/task name auth is not restored by the current pre_dynamic naming contract; live drift to ready name remains p2_worker_ready"
+      ],
+      "herdr_agent_list_after": [
+        {
+          "lane": "auth",
+          "name": "p2_worker_ready",
+          "pane_id": "w9:p4",
+          "session_id": "s-auth",
+          "slot": "P2",
+          "status": "recovered_but_name_not_task_restored"
+        },
+        {
+          "lane": "schema",
+          "name": "hdr_p3",
+          "session_id": "s-schema",
+          "slot": "P3",
+          "status": "working_unchanged"
+        }
+      ],
+      "pass": false,
+      "rationalizations": [
+        "routing.md says moved same session_id is LANE_MOVED and P1 rebinds same generation",
+        "manage_worker_pool.py reconciles moved panes by unchanged session_id and preserves healthy siblings",
+        "current pre_dynamic behavior computes ready_name(slot, controller_scope, occupied) as p2_worker_ready and has no instruction to restore p2_impl_auth before the next prompt"
+      ],
+      "scenario": "C",
+      "session_ids": {
+        "auth": "s-auth",
+        "schema": "s-schema"
+      }
+    },
+    "D": {
+      "argv_model_evidence": {
+        "cwd": "/tmp/herdr-contract-assets-red-base",
+        "ephemeral": false,
+        "mcp_disabled": false,
+        "memory_history_search_performed": false,
+        "requested_effort": {
+          "P1": "high",
+          "P5": "high",
+          "P6": "high",
+          "P7": "high",
+          "P8": "high"
+        },
+        "requested_model": {
+          "P1": "gpt-5.6-sol",
+          "P5": "gpt-5.5",
+          "P6": "gpt-5.5",
+          "P7": "gpt-5.5",
+          "P8": "gpt-5.5"
+        },
+        "yolo": true
+      },
+      "choices": {
+        "after_compaction": "continue from current contract inputs and accepted P2 receipt only; do not search history",
+        "controller_scope": "BLOCKED under current SKILL.md because P1 is socket-scoped hdr_p1 and live hdr_p1 already belongs to Space A session=s-a-p1",
+        "forbidden_actions": [
+          "controller-pane edit",
+          "unit/typecheck/Playwright command",
+          "browser action",
+          "integration",
+          "deployment"
+        ],
+        "gate": "Standard",
+        "p5_dispatch": "BLOCKED under current SKILL.md because P5 is on-demand but no scope-owned/dynamic P5 name is defined, and live hdr_p5 already belongs to Space A session=s-a-p5",
+        "reviews": "P6, P7, and P8 are applicable by approved matrix, but route only after P5 publishes the artifact/local-runtime tuple and P6/P7/P8 can be launched without identity collision"
+      },
+      "controller_actions": [
+        "Validate approved Standard contract and accepted P2 receipt.",
+        "Inspect live agent identity conceptually from provided list only.",
+        "Refuse to bind Space B current unnamed session to hdr_p1 because hdr_p1 is already live in Space A on the same socket.",
+        "Refuse to dispatch P5 because current SKILL.md has no scope-owned/dynamic P5 naming and hdr_p5 is already live in Space A.",
+        "Do not route P6-P8 until P5 artifact evidence exists."
+      ],
+      "failures": [
+        "Current pre-dynamic instructions cannot claim a separate Space B controller while hdr_p1 is already live in Space A on the same socket.",
+        "Current pre-dynamic instructions cannot dispatch a scope-owned Space B P5 while hdr_p5 is already live in Space A on the same socket.",
+        "Applicable P6-P8 routing is blocked because no Space B P5 artifact/local-runtime evidence can be produced without violating the identity contract."
+      ],
+      "herdr_agent_list_after": [
+        {
+          "agent_name": "hdr_p1",
+          "session": "s-a-p1",
+          "space": "A",
+          "state": "live"
+        },
+        {
+          "agent_name": "hdr_p5",
+          "session": "s-a-p5",
+          "space": "A",
+          "state": "live"
+        },
+        {
+          "agent_name": null,
+          "session": "s-b-p1",
+          "space": "B",
+          "state": "current_unnamed"
+        },
+        {
+          "agent_name": "p2_impl_auth",
+          "session": "s-b-p2",
+          "space": "B",
+          "state": "done"
+        }
+      ],
+      "pass": false,
+      "rationalizations": [
+        "SKILL.md says P1 is persistent controller only and must bind or recover socket-scoped hdr_p1.",
+        "routing.md says live hdr_p2-hdr_p4 names are session-global and the default pool ledger is socket-scoped; before dynamic pane naming, no separate Space B controller/P5 namespace is defined.",
+        "delivery-flow.md says Standard fan-out may include a fresh applicable P5, and applicable reviews run after P5 artifact evidence, but existing P5 Worker 4 restarts as Integration Owner only when it belongs to this delivery.",
+        "review-deploy.md makes P5 the only integration/deployment mutator and P6-P9 read-only reviewers.",
+        "Because Space A owns hdr_p1 and hdr_p5 on the same socket, claiming Space B controller scope and scope-owned P5 is not supported by the current instructions without dynamic pane naming."
+      ],
+      "scenario": "D",
+      "session_ids": {
+        "space_a_controller": "s-a-p1",
+        "space_a_p5": "s-a-p5",
+        "space_b_controller_claimed": null,
+        "space_b_current": "s-b-p1",
+        "space_b_p2_done": "s-b-p2",
+        "space_b_p5_dispatched": null,
+        "space_b_p6_dispatched": null,
+        "space_b_p7_dispatched": null,
+        "space_b_p8_dispatched": null
+      }
+    }
+  },
+  "schema_version": "herdr-skill-pressure/v1",
+  "source_files": [
+    "/tmp/herdr-contract-assets-pressure/strict-a-red.out",
+    "/tmp/herdr-contract-assets-pressure/strict-b-red.out",
+    "/tmp/herdr-contract-assets-pressure/strict-c-red.out",
+    "/tmp/herdr-contract-assets-pressure/strict-d-red.out"
+  ]
+}

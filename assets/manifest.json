@@ -6,17 +6,23 @@
     "delivery-flow.png"
   ],
   "derived_from_render_source_sha256": {
-    "delivery-flow.png": "8ec43a5240875faaf3fec45def10c9567ce793c11d3a675f2758781ac5671633"
+    "delivery-flow.png": "c28ad583102f0206a884f9039fcee994d38594ae7444476fc95ba25625eb3054"
   },
   "renderer": {
     "chrome": "Google Chrome 150.0.7871.187",
     "pillow": "9.2.0",
-    "source_size": [3560, 1320],
-    "output_size": [3000, 1113]
+    "source_size": [
+      3560,
+      1320
+    ],
+    "output_size": [
+      3000,
+      1113
+    ]
   },
   "sha256": {
-    "delivery-flow.excalidraw": "5588b11b39769c94bdadb8be7ac4728c41e8943ad7673e9d14358de93bf6a117",
-    "delivery-flow.png": "ba2e7d1db9051762de29241fcda221928cb87ae19873c50535f807f9eba06009",
-    "delivery-flow.svg": "8ec43a5240875faaf3fec45def10c9567ce793c11d3a675f2758781ac5671633"
+    "delivery-flow.excalidraw": "7169472156c7acbaf6d8a9818f7622f0e8500c3b91a28def9eedda16ee724a41",
+    "delivery-flow.png": "c9871513d4263e29023f0d2f5a86a8f579a1d2d955ee221e22385b04d73bc640",
+    "delivery-flow.svg": "c28ad583102f0206a884f9039fcee994d38594ae7444476fc95ba25625eb3054"
   }
 }

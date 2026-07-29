@@ -5,26 +5,18 @@ description: Use when an implementation plan is approved and Herdr is the select
 
 # Herdr Orchestrator
 
-P1 is a persistent controller only. It routes plans without implementing,
-testing, integrating, reviewing, committing, pushing, or deploying. Use `herdr`
-for agent control.
+P1 is a persistent controller only. P1 never implements, tests, integrates,
+reviews, commits, pushes, or deploys.
 
-## Read first
-
-Validate the [plan contract](references/plan-contract.md), then read
-[routing](references/routing.md). Compact stops there; Standard inspects
+Read [plan contract](references/plan-contract.md), then
+[routing](references/routing.md). Compact stops there. Standard inspects
 [the graph](references/delivery-flow.md) with `view_image` on
-`assets/delivery-flow.png`.
+`assets/delivery-flow.png`. Predicate refs:
+[Git integration](references/git-integration.md),
+[Review and deployment](references/review-deploy.md),
+[High assurance](references/high-assurance.md).
 
-Details:
-
-| Predicate | Reference |
-|---|---|
-| Standard-gate integration or isolation | [Git integration](references/git-integration.md) |
-| Runtime, browser, RBAC, persona, or deployment | [Review and deployment](references/review-deploy.md) |
-| Security-sensitive, destructive, production-critical, or explicitly strict | [High assurance](references/high-assurance.md) |
-
-## Model roster
+## Model Roster
 
 | Pane | Role | Model | Effort |
 |---|---|---|---|
@@ -38,19 +30,23 @@ Details:
 | P8 | Designer | `gpt-5.5` | `high` |
 | P9 | Persona | `gpt-5.5` | `medium` |
 
-## Runtime contract
+## Runtime Contract
 
-1. Validate approved logical lanes; reject live pane IDs and do not plan.
-2. Bind or recover the socket-scoped `hdr_p1` controller identity.
-3. Run one bounded scheduler tick: ingest inbox/events, classify deltas,
-   register ownership, dispatch ready lanes, return.
-4. Reuse workers; cold-start only missing or incompatible capacity.
-5. Give each lane one capsule, applicable references, and its receipt command.
-6. Compact gate: P2-P4 change disjoint paths; a Compact verifier returns
-   read-only scope, diff, and acceptance evidence. Do not start P5-P9.
-7. Standard gate: P5 may prepare integration-owned RED tests at fan-out. P5
-   integrates accepted worker outputs after validator-clean receipts.
-8. P5 writes integration and deployment evidence; P6-P9 review only when their
-   predicates apply. P1 routes findings to owners.
+Validate approved logical lanes; reject live pane IDs and do not plan.
+Bind/recover this chat's scoped P1. On every turn or compaction, run
+`next_controller_action.py`; P1 may run only routing/Herdr-control helpers,
+never edit, test, integrate, review, browse, or deploy. Before a lane prompt,
+derive `p{slot}_{role}_{task}`, reserve/rename/verify it, then prompt the
+verified name. Default P1 is `p1_orchestrator`; use
+`render_agent_status.py` for status output.
 
-Persist transitions, receipts, and evidence. Keep P1 output within 20 lines.
+Run one bounded scheduler tick: claim socket-scoped P1 inbox, watcher event
+queue, ownership queue, dispatch all ready lanes without waiting, and return.
+Reuse workers; cold-start only missing or incompatible capacity.
+
+Compact gate: P2-P4 change disjoint paths; a Compact verifier returns read-only
+scope, diff, and acceptance evidence. Do not start P5-P9. Standard: P5 may
+prepare integration-owned RED tests at fan-out. P5 integrates accepted worker
+outputs after validator-clean receipts. P5 writes integration and deployment
+evidence; P6-P9 review only when predicates apply. P1 routes findings to
+owners. Keep P1 output within 20 lines.
