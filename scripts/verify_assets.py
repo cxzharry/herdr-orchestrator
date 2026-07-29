@@ -20,8 +20,8 @@ REQUIRED_FILES = {
     "delivery-flow.svg",
 }
 CANONICAL_SOURCE_HASHES = {
-    "delivery-flow.excalidraw": "765b5ac850c10aef901afbbde1e5012335ffd32206c847d298120809f5f80e79",
-    "delivery-flow.svg": "8931202aecb26e0495d186ff15c0ca67a0a0397f487366ce31b01e8fb52a145f",
+    "delivery-flow.excalidraw": "5588b11b39769c94bdadb8be7ac4728c41e8943ad7673e9d14358de93bf6a117",
+    "delivery-flow.svg": "8ec43a5240875faaf3fec45def10c9567ce793c11d3a675f2758781ac5671633",
 }
 PANE_IDS = (
     "orchestrator",
@@ -58,6 +58,7 @@ EXPECTED_EDGES = {
     ("orchestrator", "ready"),
     ("ready", "contract"),
     ("ready", "orchestrator"),
+    ("ready", "verified"),
     ("contract", "isolation"),
     ("isolation", "fork"),
     ("isolation", "worktree"),
@@ -85,7 +86,7 @@ EXPECTED_EDGES = {
     ("persona", "review_gate"),
     ("review_gate", "promotion"),
     ("review_gate", "orchestrator"),
-    ("promotion", "verified"),
+    ("promotion", "end"),
     ("verified", "end"),
 }
 ARROW_IDS = {
@@ -93,6 +94,7 @@ ARROW_IDS = {
     "o_ready",
     "ready_yes",
     "ready_no",
+    "ready_compact",
     "contract_isolation",
     "isolation_no",
     "isolation_yes",
@@ -120,7 +122,7 @@ ARROW_IDS = {
     "persona_review_gate",
     "review_yes",
     "review_no",
-    "promotion_verified",
+    "promotion_end",
     "verified_end",
 }
 EXPECTED_NODE_TYPES = {
@@ -172,11 +174,12 @@ EXPECTED_TEXTS = {
     "designer_text": "P8  DESIGNER\nUI · UX · accessibility",
     "persona_text": "P9  PERSONA\njourneys · friction",
     "review_gate_text": "Blocking gates\npass?",
-    "promotion_text": "ASYNC SIGNAL\nreceipt · moved · lost",
-    "verified_text": "COMPACT VERIFIER\nscope · diff · checks",
+    "promotion_text": "STANDARD VERIFIED\nartifact · evidence",
+    "verified_text": "COMPACT VERIFIER\nscope · diff · checks\nlocal stop",
     "end_text": "END",
-    "ready_yes_label": "yes",
-    "ready_no_label": "no · clarify",
+    "ready_yes_label": "standard",
+    "ready_no_label": "blocked · queue",
+    "ready_compact_label": "compact",
     "isolation_no_label": "no · shared tree + ownership",
     "isolation_yes_label": "yes · overlap / risky",
     "artifact_yes_label": "yes · deploy",
@@ -390,8 +393,8 @@ def verify(manifest_path: Path) -> dict:
                     f"wrong {label} color role: {', '.join(wrong_style)}"
                 )
 
-        if len(arrows) != 33:
-            failures.append(f"expected 33 arrows, found {len(arrows)}")
+        if len(arrows) != 34:
+            failures.append(f"expected 34 arrows, found {len(arrows)}")
         if any(not arrow.get("startBinding") or not arrow.get("endBinding") for arrow in arrows):
             failures.append("every arrow must bind both endpoints")
         bindings = [
@@ -411,6 +414,14 @@ def verify(manifest_path: Path) -> dict:
         }
         if actual_edges != EXPECTED_EDGES:
             failures.append("directed graph edges must match the canonical topology")
+        if _path_exists(actual_edges, "review_gate", "verified", blocked={"orchestrator"}):
+            failures.append(
+                "standard review gate must not flow through the Compact verifier"
+            )
+        if not _path_exists(actual_edges, "ready", "verified"):
+            failures.append("scheduler gate must branch directly to Compact verifier")
+        if not _path_exists(actual_edges, "verified", "end"):
+            failures.append("Compact verifier must stop at verified local delivery/end")
         starts = {
             arrow["startBinding"]["elementId"]
             for arrow in arrows
@@ -454,6 +465,29 @@ def verify(manifest_path: Path) -> dict:
         "failures": failures,
     }
     return result
+
+
+def _path_exists(
+    edges: set[tuple[str, str]],
+    start: str,
+    end: str,
+    *,
+    blocked: set[str] | None = None,
+) -> bool:
+    blocked = blocked or set()
+    frontier = [start]
+    seen = set()
+    while frontier:
+        node = frontier.pop()
+        if node in blocked:
+            continue
+        if node == end:
+            return True
+        if node in seen:
+            continue
+        seen.add(node)
+        frontier.extend(target for source, target in edges if source == node)
+    return False
 
 
 def main() -> int:

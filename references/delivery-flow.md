@@ -22,6 +22,16 @@ P1 owns the socket-scoped P1 inbox, bounded scheduler tick, ownership queue,
 watcher event queue, and async signals. P1 does not implement, test, integrate,
 review, commit, push, deploy, or long-wait on receipts.
 
+The scheduler gate branches before delivery fan-out:
+
+- **Compact:** scheduler gate -> Compact verifier -> verified local delivery /
+  end. This branch is local-only and stops before P5-P9.
+- **Standard:** scheduler gate -> contract/isolation -> P2-P5 delivery fan-out
+  -> P5 integration/deploy -> P6-P9 applicable review -> Standard verified /
+  end.
+
+There is no edge from the Standard review gate through the Compact verifier.
+
 For the standard gate:
 
 - P2-P4 and a definitely-applicable fresh P5 start at the same fan-out boundary.
