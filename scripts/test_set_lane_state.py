@@ -13,7 +13,11 @@ class SetLaneStateTests(unittest.TestCase):
         self.path.write_text(
             json.dumps(
                 {
+                    "schema_version": "herdr-control-state/v2",
                     "contract_id": "contract-a",
+                    "root": "/tmp/project",
+                    "base_sha": "abc",
+                    "revision": 0,
                     "lanes": {
                         "quality": {
                             "generation": 2,
@@ -49,6 +53,9 @@ class SetLaneStateTests(unittest.TestCase):
         state = json.loads(self.path.read_text(encoding="utf-8"))
         self.assertEqual(state["lanes"]["quality"]["generation"], 2)
         self.assertEqual(state["lanes"]["integration"]["generation"], 3)
+        self.assertEqual(state["lanes"]["integration"]["root"], "/tmp/project")
+        self.assertEqual(state["lanes"]["integration"]["base_sha"], "abc")
+        self.assertEqual(state["revision"], 1)
         self.assertEqual(
             state["lanes"]["integration"]["input_identity"]["finding_sha256"],
             "def",

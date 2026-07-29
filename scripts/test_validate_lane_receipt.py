@@ -16,7 +16,10 @@ class ReceiptValidationTests(unittest.TestCase):
                     "agent_name": "worker_api",
                     "pane_id": "w1:p2",
                     "session_id": "session-2",
+                    "root": "/tmp/project",
+                    "base_sha": "abc123",
                     "input_identity": {"base_sha": "abc123"},
+                    "owned_scope": ["scripts/api.py"],
                 }
             },
         }
@@ -30,8 +33,11 @@ class ReceiptValidationTests(unittest.TestCase):
             "pane_id": "w1:p2",
             "session_id": "session-2",
             "status": "PASS",
+            "root": "/tmp/project",
+            "base_sha": "abc123",
             "input_identity": {"base_sha": "abc123"},
             "output_identity": {"lane_sha": "def456"},
+            "owned_scope": ["scripts/api.py"],
             "covered_acceptance": ["API returns the approved response"],
             "checks": [
                 {
@@ -77,6 +83,14 @@ class ReceiptValidationTests(unittest.TestCase):
         receipt["finding_or_blocker"] = {"summary": "migration unavailable"}
         self.assertIn(
             "PASS cannot contain a finding or blocker",
+            validate_receipt(receipt, self.state),
+        )
+
+    def test_rejects_mismatched_owned_scope_identity(self):
+        receipt = copy.deepcopy(self.receipt)
+        receipt["owned_scope"] = ["scripts/other.py"]
+        self.assertIn(
+            "owned_scope does not match current lane",
             validate_receipt(receipt, self.state),
         )
 

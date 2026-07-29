@@ -49,6 +49,8 @@ class RegisterLaneTests(unittest.TestCase):
 
         lane = value["lanes"]["review"]
         self.assertEqual(lane["contract_id"], "contract-a")
+        self.assertEqual(value["schema_version"], "herdr-control-state/v2")
+        self.assertEqual(value["revision"], 1)
         self.assertEqual(lane["state"], "READY")
         self.assertEqual(
             lane["receipt_path"],
