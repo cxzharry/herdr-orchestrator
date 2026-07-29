@@ -60,6 +60,15 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
     for field, message in expected_fields.items():
         if receipt[field] != lane.get(field):
             failures.append(message)
+    optional_identity_fields = {
+        "root": "root does not match current lane",
+        "base_sha": "base_sha does not match current lane",
+        "owned_scope": "owned_scope does not match current lane",
+    }
+    for field, message in optional_identity_fields.items():
+        expected = lane.get(field, control_state.get(field))
+        if field in receipt and receipt[field] != expected:
+            failures.append(message)
 
     if receipt["status"] == "PASS":
         if receipt["finding_or_blocker"] is not None:

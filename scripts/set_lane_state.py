@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import tempfile
 from pathlib import Path
+
+try:
+    from scripts.scheduler_state import SchedulerStateError, set_lane as set_scheduler_lane
+except ModuleNotFoundError:
+    from scheduler_state import SchedulerStateError, set_lane as set_scheduler_lane
 
 
 class StateUpdateError(RuntimeError):
@@ -22,30 +25,17 @@ def set_lane(
     receipt_path: str,
     input_updates: dict[str, str],
 ) -> dict:
-    value = json.loads(state_path.read_text(encoding="utf-8"))
-    lane = value.get("lanes", {}).get(lane_id)
-    if lane is None:
-        raise StateUpdateError(f"unknown lane: {lane_id}")
-    lane["generation"] = generation
-    lane["state"] = state_value
-    lane["receipt_path"] = receipt_path
-    lane.setdefault("input_identity", {}).update(input_updates)
-
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{state_path.name}.",
-        dir=state_path.parent,
-        text=True,
-    )
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(value, handle, indent=2)
-            handle.write("\n")
-        os.replace(temporary, state_path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    return lane
+        return set_scheduler_lane(
+            state_path,
+            lane_id,
+            generation,
+            state_value,
+            receipt_path,
+            input_updates,
+        )
+    except SchedulerStateError as error:
+        raise StateUpdateError(str(error)) from error
 
 
 def parse_args() -> argparse.Namespace:

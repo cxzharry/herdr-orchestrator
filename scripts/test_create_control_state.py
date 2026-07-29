@@ -44,7 +44,12 @@ class CreateControlStateTests(unittest.TestCase):
         value = create_state(self.manifest, self.state)
 
         lane = value["lanes"]["quality"]
+        self.assertEqual(value["schema_version"], "herdr-control-state/v2")
+        self.assertEqual(value["revision"], 0)
+        self.assertEqual(value["requests"], {})
         self.assertEqual(lane["contract_id"], "contract-a")
+        self.assertEqual(lane["root"], "/tmp/project")
+        self.assertEqual(lane["base_sha"], "abc")
         self.assertEqual(lane["state"], "READY")
         self.assertEqual(
             lane["receipt_path"],

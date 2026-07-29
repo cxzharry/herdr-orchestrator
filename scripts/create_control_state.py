@@ -9,6 +9,11 @@ import os
 import tempfile
 from pathlib import Path
 
+try:
+    from scripts.scheduler_state import normalize_lane
+except ModuleNotFoundError:
+    from scheduler_state import normalize_lane
+
 
 class StateCreationError(RuntimeError):
     pass
@@ -59,26 +64,21 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
         lane_id = source["lane_id"]
         if lane_id in lanes:
             raise StateCreationError(f"duplicate lane: {lane_id}")
-        generation = source["generation"]
-        lane = dict(source)
-        lane.update(
-            {
-                "contract_id": manifest["contract_id"],
-                "state": source.get("state", "READY"),
-                "receipt_path": source.get(
-                    "receipt_path",
-                    str(run_dir / "receipts" / f"{lane_id}-g{generation}.json"),
-                ),
-            }
-        )
+        lane = normalize_lane(manifest, lane_id, source, run_dir)
         lanes[lane_id] = lane
 
     value = {
-        "schema_version": "herdr-control-state/v1",
+        "schema_version": "herdr-control-state/v2",
         "contract_id": manifest["contract_id"],
         "root": manifest["root"],
         "base_sha": manifest["base_sha"],
         "approved_input_sha256": manifest["approved_input_sha256"],
+        "revision": 0,
+        "controller": manifest.get("controller", {}),
+        "requests": {},
+        "request_order": [],
+        "event_cursor": 0,
+        "watcher": manifest.get("watcher", {}),
         "lanes": lanes,
     }
     run_dir.mkdir(parents=True, exist_ok=True)
