@@ -106,16 +106,29 @@ def decide_controller_action(
             "controller_pane_id": controller["pane_id"],
         }
 
-    if live_controller:
-        return {
-            "action": "BLOCK",
-            "reason": "BLOCKED_ROLE_CONFLICT",
-        }
-
     if current_name:
+        if live_controller:
+            return {
+                "action": "BLOCK",
+                "reason": "BLOCKED_ROLE_CONFLICT",
+            }
         return {
             "action": "BLOCK",
             "reason": "BLOCKED_NO_CONTROLLER",
+        }
+
+    if live_controller:
+        controller = compact_identity(live_controller)
+        if _workspace_mismatch(current, controller):
+            return {
+                "action": "BLOCK",
+                "reason": "BLOCKED_WORKSPACE_MISMATCH",
+            }
+        if current["session_id"] and controller["session_id"] != current["session_id"]:
+            return {"action": "PROMOTE", **current}
+        return {
+            "action": "BLOCK",
+            "reason": "BLOCKED_ROLE_CONFLICT",
         }
 
     return {"action": "PROMOTE", **current}

@@ -98,6 +98,24 @@ class ControllerDecisionTests(unittest.TestCase):
 
 
 class DynamicControllerDecisionTests(unittest.TestCase):
+    def test_unnamed_main_chat_with_distinct_session_promotes_despite_existing_scoped_p1(self):
+        current = agent("", "w1:p8", "session-new")
+        controller = agent("p1_orchestrator", "w1:p1", "session-p1")
+
+        result = decide_controller_action(current, controller)
+
+        self.assertEqual(result["action"], "PROMOTE")
+        self.assertEqual(result["session_id"], "session-new")
+
+    def test_unnamed_main_chat_in_another_workspace_does_not_promote_to_scoped_p1(self):
+        current = agent("", "w6:p8", "session-new")
+        controller = agent("p1_orchestrator", "w1:p1", "session-p1")
+
+        result = decide_controller_action(current, controller)
+
+        self.assertEqual(result["action"], "BLOCK")
+        self.assertEqual(result["reason"], "BLOCKED_WORKSPACE_MISMATCH")
+
     def test_dynamic_worker_forwards_to_dynamic_controller(self):
         current = agent("p2_impl_auth", "w1:p2", "session-worker")
         controller = agent(

@@ -59,7 +59,7 @@ class RuntimeRegistryTests(unittest.TestCase):
 
         self.assertNotEqual(result["name"], "p1_orchestrator")
 
-    def test_finalized_scope_keeps_stable_name_after_other_name_is_freed(self):
+    def test_finalized_reservation_retries_keep_stable_name_after_other_name_is_freed(self):
         first = self.registry.reserve_visible_name(
             controller_scope="scope-a",
             slot="P2",
@@ -90,11 +90,44 @@ class RuntimeRegistryTests(unittest.TestCase):
             controller_scope="scope-a",
             slot="P2",
             role="impl",
-            task="schema",
-            reservation_token="token-a2",
+            task="auth",
+            reservation_token="token-a",
         )
 
         self.assertEqual(resumed["name"], first["name"])
+
+    def test_finalized_p1_does_not_mask_worker_reservations_in_same_scope(self):
+        p1 = self.registry.reserve_visible_name(
+            controller_scope="scope-a",
+            slot="P1",
+            role="orchestrator",
+            reservation_token="token-p1",
+        )
+        self.registry.finalize_visible_name(
+            controller_scope="scope-a",
+            reservation_token="token-p1",
+            session_id="session-p1",
+            name=p1["name"],
+        )
+
+        p2 = self.registry.reserve_visible_name(
+            controller_scope="scope-a",
+            slot="P2",
+            role="impl",
+            task="auth",
+            reservation_token="token-p2",
+        )
+        p5 = self.registry.reserve_visible_name(
+            controller_scope="scope-a",
+            slot="P5",
+            role="integration_owner",
+            reservation_token="token-p5",
+        )
+
+        self.assertEqual(p1["name"], "p1_orchestrator")
+        self.assertEqual(p2["name"], "p2_impl_auth")
+        self.assertEqual(p5["name"], "p5_integration_owner")
+        self.assertNotIn(p1["name"], {p2["name"], p5["name"]})
 
     def test_live_session_is_leased_to_one_scope_lane(self):
         self.registry.lease_session(
