@@ -10,12 +10,17 @@ canonical render source; PNG is its deterministic visual preview.
 
 Call `view_image` on the PNG before planning. Use SVG only as a fallback.
 
-The graph shows the maximum standard-gate topology, not unconditional
-concurrency. An approved compact local task may stop after ready workers plus
-P1's independent deterministic verification; it does not start P5-P9.
+The graph shows two distinct planes: a persistent P1 control plane and the
+P2-P9 delivery plane. It is the maximum standard-gate topology, not
+unconditional concurrency. An approved compact local task may stop after ready
+workers plus a read-only Compact verifier; it does not start P5-P9.
 P2-P4 may already exist as idle reusable agents. Leasing them changes runtime
 state, not this role topology; each active lease is still bound to one current
 contract, generation, pane, session, root, and owned scope.
+
+P1 owns the socket-scoped P1 inbox, bounded scheduler tick, ownership queue,
+watcher event queue, and async signals. P1 does not implement, test, integrate,
+review, commit, push, deploy, or long-wait on receipts.
 
 For the standard gate:
 
@@ -29,7 +34,7 @@ For the standard gate:
   target, P5 starts a local review runtime.
 - P7-P9 prepare early, then run applicable review concurrently and report to P1
   as each finishes.
-- Main promotion waits only for applicable blocking gates.
+- Main promotion is performed by P5 after applicable blocking gates pass.
 
 Before delivery or after a visual edit, regenerate PNG and run:
 

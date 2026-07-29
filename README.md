@@ -14,12 +14,12 @@ plan to Herdr Orchestrator as the execution backend.
 
 ## What this skill helps with
 
-The skill gives one controller, P1, direct control of a warm P2-P4 pool and
-on-demand P5-P9 agents:
+The skill gives one persistent controller, P1, direct control of a warm P2-P4
+pool and on-demand P5-P9 agents:
 
 | Pane | Responsibility |
 |---|---|
-| P1 | Validate the approved plan, route work, and aggregate evidence |
+| P1 | Validate inputs, run bounded scheduler ticks, route work, and aggregate evidence |
 | P2-P4 | Parallel implementation lanes |
 | P5 | Additional worker, integration owner, and deployment owner |
 | P6 | Independent integration reviewer |
@@ -33,11 +33,15 @@ It adds:
 - bounded parallel implementation with path ownership and dependencies;
 - warm P2-P4 reuse instead of starting every Codex process from scratch;
 - direct interruption, redirection, and inspection of each Herdr agent;
-- terminal receipts and independently rerun acceptance checks;
+- terminal receipts and independent acceptance evidence;
 - conditional review gates instead of always starting all nine roles;
 - recovery when P1 changes workspace or a worker pane moves or closes;
 - socket-scoped, locked pool state so concurrent controllers cannot overwrite
   worker identity.
+
+P1 is a persistent controller only. P1 never implements, tests, integrates,
+reviews, commits, pushes, or deploys. Product checks and delivery mutations
+belong to workers, the Compact verifier, P5, and applicable P6-P9 reviewers.
 
 Every Codex worker created by the current runtime is launched with native
 `--yolo`. Use this only in repositories and environments where bypassing
@@ -72,9 +76,9 @@ deterministic checks, no UI/browser/auth/schema/security/external-state scope,
 and no deployment target.
 
 ```text
-P1 -> warm P2/P3/P4 in parallel
-   -> P1 reruns scope and deterministic checks
-   -> verified local delivery
+P1 scheduler tick -> warm P2/P3/P4 in parallel
+   -> Compact verifier checks scope, diff, and acceptance
+   -> P1 records the verifier receipt and reports local delivery
 ```
 
 P5-P9 are not started.
@@ -144,6 +148,7 @@ Quality improves through stronger controls rather than “more agents”:
 - approved inputs and acceptance are locked before runtime binding;
 - every lane has owned scope, generation, identity, checks, and a receipt;
 - P5 integration and P6 review inspect the same artifact;
+- P5 writes integration and deployment evidence;
 - stale, moved, closed, or replaced workers cannot silently satisfy a lane;
 - a failed lane can be replaced without discarding unrelated worker progress.
 
@@ -402,9 +407,9 @@ The agent running this skill should follow this sequence:
 5. Reuse compatible warm P2-P4 workers before creating new panes.
 6. Start every new Codex worker with `--yolo` and the rostered model/effort.
 7. Dispatch only dependency-ready logical lanes with one bounded capsule each.
-8. Accept terminal receipts and fresh checks, not chat summaries.
-9. Run only the applicable integration, review, QC, design, persona, and
-   deployment gates.
+8. Accept terminal receipts and fresh evidence summaries, not chat summaries.
+9. Dispatch only applicable integration, review, QC, design, persona, and
+   deployment gates to P5-P9.
 10. Report accepted identities, evidence, blockers, and the next transition;
     do not reopen planning.
 
@@ -418,8 +423,8 @@ applicable.
 - P1 may move to another Herdr workspace and still reuse the pool.
 - A worker moved with the same session is rebound to its new pane.
 - A closed P2-P4 slot is recreated without replacing healthy siblings.
-- If an active Standard lane in P5-P9 disappears, the receipt waiter reports it
-  lost after three live checks. P1 preserves its shared-worktree evidence,
+- If an active lane disappears, the run watcher emits a queued lost-lane event
+  after three live checks. P1 claims that event on the next scheduler tick,
   supersedes only that generation, starts a replacement, and rejects any late
   receipt from the lost session.
 - Same-contract busy workers are attached and observed, not double-dispatched.

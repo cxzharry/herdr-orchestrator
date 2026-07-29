@@ -8,6 +8,12 @@ dependencies, applicable review matrices, deployment topology, and required
 evidence. Missing, stale, or contradictory inputs return BLOCKED upstream.
 Do not brainstorm, redesign the product, or write a plan.
 
+P1 is a persistent controller only. P1 never implements, tests, integrates,
+reviews, commits, pushes, or deploys. A P1 turn is one bounded scheduler tick:
+claim the socket-scoped P1 inbox, claim watcher event queue entries, reconcile
+ownership queue state, dispatch all ready lanes without waiting, and return
+active, queued, blocked, and newly dispatched work.
+
 Confirm `HERDR_ENV=1`. Inspect the named workspace and current agents with the
 bounded preflight below. Never infer an ID from visual pane order and do not
 substitute a layout command:
@@ -101,34 +107,31 @@ report at or below 20 lines unless a structured finding requires more. Report
 only decisions, blockers, accepted identities, and the next
 transition; never restate static rules or enumerate non-applicable evidence.
 
-Use Herdr reads for live progress and terminal receipts for completion. Refer
-to large logs and screenshots by path and digest; include only the relevant
-finding excerpt. Do not relay progress summaries between agents.
+Use Herdr reads for bounded live progress and terminal receipts for completion.
+Refer to large logs and screenshots by path and digest; include only the
+relevant finding excerpt. Do not relay progress summaries between agents.
 
 Submit independent lane prompts without `--wait`. A validator-clean terminal
-receipt is the completion signal; a later chat final is not required. Use one
-filesystem wait for the blocking wave:
+receipt is the completion signal; a later chat final is not required. P1 does
+not call await_receipts.py or any long synchronous receipt wait. Do not call
+`herdr agent wait` after dispatch when a receipt path exists. Do not poll
+workers sequentially, reread settled chat, or hold `agent prompt --wait` after
+terminal receipts exist.
 
-```bash
-python3 <skill-root>/scripts/await_receipts.py \
-  --control-state "$run_dir/control-state.json" \
-  --lane "$lane_id" --timeout 600
-```
+Each Standard delivery starts one run-scoped watcher process, not an agent and
+not a daemon. The watcher observes receipt paths and live session identity,
+then appends immutable events for terminal receipt, moved pane, lost lane, or
+watcher failure into the watcher event queue. It sends only an async signal
+containing the event ID when P1 is idle or done; when P1 is busy or blocked, the
+event stays queued.
 
-Do not call `herdr agent wait` after dispatch when a receipt path exists. Do not
-poll workers sequentially, reread settled chat, or hold `agent prompt --wait`
-after terminal receipts exist.
-
-`await_receipts.py` also tracks live session identity for every requested lane.
-If the same session_id appears under a new pane_id after a pane move, it
-atomically rebinds the lane location and continues the same generation. A
-terminal receipt already on disk wins even if the agent was then closed.
-
-If a requested session is absent for three live checks, the waiter returns
-`status=lost and exit code 2`. Do not wait for the receipt timeout. P1 preserves
-the shared-worktree diff and evidence, marks only that generation SUPERSEDED,
-increments the lane, starts a replacement with the locked input identity, and
-continues unrelated lanes. Reject any late receipt from the lost session.
+If the same session_id appears under a new pane_id after a pane move, the
+watcher emits `LANE_MOVED`; P1 rebinds the same generation on the next
+scheduler tick. A terminal receipt already on disk wins even if the agent was
+then closed. If a requested session is absent for three live checks, the
+watcher emits `LANE_LOST`. P1 marks only that generation SUPERSEDED, increments
+the lane, starts a replacement with the locked input identity, and continues
+unrelated lanes. Reject any late receipt from the lost session.
 
 Do not inspect prior benchmark answers, unrelated run directories, superseded
 receipts, or old conversations for response shape. Only current-contract
@@ -291,15 +294,17 @@ If any condition is false or becomes false, use the standard gate.
 The compact topology is:
 
 ```text
-P1 -> ready P2/P3/P4 workers in parallel
-   -> P1 independently reruns scope + deterministic checks
-   -> verified local delivery
+P1 scheduler tick -> ready P2/P3/P4 workers in parallel
+   -> Compact verifier reads scope, diff, and deterministic evidence
+   -> P1 records the verifier receipt and reports local delivery
 ```
 
-P1 is independent because it never mutates worker scope. Do not start P5-P9.
+The Compact verifier is read-only and owns the deterministic acceptance check.
+P1 records only the verifier result and routing state. Do not start P5-P9.
 Run the worker reuse policy before cold-starting missing capacity.
-Do not create a run directory, `control-state.json`, or receipt files on the
-compact path. Live Herdr identity plus the scoped Git diff is the checkpoint.
+Use a smaller socket-scoped scheduler state containing controller, delta,
+implementation lane, verifier lane, ownership queue, and receipt identities.
+Live Herdr identity plus the scoped Git diff is the checkpoint.
 If P1 restarts or a lane needs replacement, inspect that checkpoint and upgrade
 to the standard gate before accepting more work.
 
@@ -331,10 +336,10 @@ CHECKS <command>=PASS[; ...]
 BLOCKER: none
 ```
 
-P1 obtains agent, pane, and session from live Herdr state and accepts the message
-only after matching that identity, owned paths, current generation, input
-identity, exact diff, and fresh check output. Report the accepted compact
-identities in the final response; no separate receipt file or P5/P6 session is
+The Compact verifier obtains agent, pane, and session from live Herdr state and
+returns a receipt only after matching that identity, owned paths, current
+generation, input identity, exact diff, and fresh check output. P1 reports the
+accepted compact identities after recording that receipt; no P5/P6 session is
 required.
 
 Read only the compact terminal tail:
@@ -343,13 +348,14 @@ Read only the compact terminal tail:
 herdr agent read "$agent_name" --source recent-unwrapped --lines 12
 ```
 
-If `COMPACT PASS` is absent, use one bounded wait and read the same tail again.
-Do not load full terminal history or raw logs unless a finding requires them.
+If `COMPACT PASS` is absent, keep the lane queued until the watcher or a later
+scheduler tick reports a terminal signal. Do not load full terminal history or
+raw logs unless a finding requires them.
 
 Any blocker, finding, scope expansion, replacement, non-determinism, or failed
-P1 check upgrades the run to the standard gate. Preserve the compact evidence,
-increment only affected generations, and require validator-clean JSON receipts
-from that transition onward.
+Compact verifier check upgrades the run to the standard gate. Preserve the
+compact evidence, increment only affected generations, and require
+validator-clean JSON receipts from that transition onward.
 
 ## Standard gate state and acceptance
 
@@ -420,7 +426,7 @@ surface. A decorator alone is not evidence of deep immutability.
 ## Direct control and recovery
 
 P1 addresses a lane by its recorded agent_name, pane_id, and session_id.
-Aggregate reads are for overview. At a dependency boundary, wait only on the
+Aggregate reads are for overview. At a dependency boundary, reconcile only the
 lane blocking that transition; unrelated lanes continue.
 
 For a stalled lane:

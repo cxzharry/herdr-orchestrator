@@ -26,7 +26,8 @@ P1 locks exactly one policy:
 - **no deployment target:** P5 starts an isolated local review runtime and
   reports artifact evidence without claiming deployment.
 
-P1 authorizes promotion; P5 deploys. Reviewers never deploy or modify code.
+P1 records promotion eligibility and routes the decision. P5 deploys and writes
+integration and deployment evidence. Reviewers never deploy or modify code.
 
 ## Applicability and parallel independent review
 
