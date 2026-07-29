@@ -44,7 +44,7 @@ def write_receipt(
         "lane_id": lane_id,
         "generation": lane["generation"],
         "role": lane["role"],
-        "agent_name": lane["agent_name"],
+        "agent_name": lane.get("dispatch_agent_name", lane["agent_name"]),
         "pane_id": lane["pane_id"],
         "session_id": lane["session_id"],
         "status": status,

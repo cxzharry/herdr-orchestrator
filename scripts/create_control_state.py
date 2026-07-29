@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 
 try:
-    from scripts.scheduler_state import normalize_lane
+    from scripts.scheduler_state import SchedulerStateError, normalize_lane
 except ModuleNotFoundError:
-    from scheduler_state import normalize_lane
+    from scheduler_state import SchedulerStateError, normalize_lane
 
 
 class StateCreationError(RuntimeError):
@@ -22,6 +22,7 @@ class StateCreationError(RuntimeError):
 RUN_FIELDS = {
     "schema_version",
     "contract_id",
+    "controller_scope",
     "root",
     "base_sha",
     "approved_input_sha256",
@@ -64,12 +65,18 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
         lane_id = source["lane_id"]
         if lane_id in lanes:
             raise StateCreationError(f"duplicate lane: {lane_id}")
-        lane = normalize_lane(manifest, lane_id, source, run_dir)
+        try:
+            lane = normalize_lane(manifest, lane_id, source, run_dir)
+        except SchedulerStateError as error:
+            raise StateCreationError(str(error)) from error
+        if lane.get("controller_scope") != manifest["controller_scope"]:
+            raise StateCreationError("lane leased to a different controller scope")
         lanes[lane_id] = lane
 
     value = {
         "schema_version": "herdr-control-state/v2",
         "contract_id": manifest["contract_id"],
+        "controller_scope": manifest["controller_scope"],
         "root": manifest["root"],
         "base_sha": manifest["base_sha"],
         "approved_input_sha256": manifest["approved_input_sha256"],
@@ -81,6 +88,8 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
         "watcher": manifest.get("watcher", {}),
         "lanes": lanes,
     }
+    if "gate_matrix" in manifest:
+        value["gate_matrix"] = manifest["gate_matrix"]
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "receipts").mkdir(exist_ok=True)
     (run_dir / "evidence").mkdir(exist_ok=True)
@@ -105,7 +114,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         value = create_state(args.manifest, args.control_state)
-    except (OSError, ValueError, StateCreationError) as error:
+    except (OSError, ValueError, SchedulerStateError, StateCreationError) as error:
         print(json.dumps({"status": "error", "error": str(error)}))
         return 1
     print(

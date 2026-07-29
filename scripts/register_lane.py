@@ -9,10 +9,10 @@ from pathlib import Path
 
 try:
     from scripts.create_control_state import LANE_FIELDS
-    from scripts.scheduler_state import atomic_update, normalize_lane
+    from scripts.scheduler_state import SchedulerStateError, atomic_update, normalize_lane
 except ModuleNotFoundError:
     from create_control_state import LANE_FIELDS
-    from scheduler_state import atomic_update, normalize_lane
+    from scheduler_state import SchedulerStateError, atomic_update, normalize_lane
 
 
 class LaneRegistrationError(RuntimeError):
@@ -31,7 +31,10 @@ def register_lane(state_path: Path, lane_path: Path) -> dict:
         lane_id = source["lane_id"]
         if lane_id in value.get("lanes", {}):
             raise LaneRegistrationError(f"lane already exists: {lane_id}")
-        lane = normalize_lane(value, lane_id, source, state_path.parent)
+        try:
+            lane = normalize_lane(value, lane_id, source, state_path.parent)
+        except SchedulerStateError as error:
+            raise LaneRegistrationError(str(error)) from error
         value.setdefault("lanes", {})[lane_id] = lane
         return value
 

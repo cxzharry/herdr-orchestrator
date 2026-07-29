@@ -16,8 +16,13 @@ def lane(lane_id, *, state="READY", owned_scope=None, generation=1):
     return {
         "lane_id": lane_id,
         "generation": generation,
+        "slot": "P4",
         "role": "worker",
+        "display_role": "impl",
+        "display_slug": lane_id,
         "agent_name": f"agent-{lane_id}",
+        "expected_agent_name": f"agent-{lane_id}",
+        "dispatch_agent_name": f"agent-{lane_id}",
         "pane_id": f"w1:{lane_id}",
         "session_id": f"session-{lane_id}",
         "input_identity": {"base_sha": "abc123"},
@@ -37,6 +42,7 @@ class SchedulerStateTests(unittest.TestCase):
                 {
                     "schema_version": "herdr-control-state/v2",
                     "contract_id": "contract-a",
+                    "controller_scope": "scope-a",
                     "root": "/tmp/project",
                     "base_sha": "abc123",
                     "approved_input_sha256": "input123",
@@ -74,7 +80,12 @@ class SchedulerStateTests(unittest.TestCase):
     def test_disjoint_delta_dispatches_to_idle_lane(self):
         result = register_delta(
             self.state_path,
-            self.request("req-disjoint", ["scripts/controller_router.py"]),
+            self.request(
+                "req-disjoint",
+                ["scripts/controller_router.py"],
+                display_role="impl",
+                display_slug="auth",
+            ),
         )
 
         state = read_state(self.state_path)
@@ -82,6 +93,8 @@ class SchedulerStateTests(unittest.TestCase):
         self.assertEqual(result["lane_id"], "p4")
         self.assertEqual(state["lanes"]["p4"]["state"], "ACTIVE")
         self.assertEqual(state["lanes"]["p4"]["owned_scope"], ["scripts/controller_router.py"])
+        self.assertEqual(state["lanes"]["p4"]["display_role"], "impl")
+        self.assertEqual(state["lanes"]["p4"]["display_slug"], "auth")
         self.assertEqual(state["requests"]["req-disjoint"]["state"], "ACTIVE")
         self.assertEqual(state["revision"], 1)
 
@@ -159,6 +172,7 @@ class SchedulerStateTests(unittest.TestCase):
                 {
                     "schema_version": "herdr-control-state/v1",
                     "contract_id": "contract-a",
+                    "controller_scope": "scope-a",
                     "root": "/tmp/project",
                     "base_sha": "abc123",
                     "approved_input_sha256": "input123",
@@ -174,6 +188,10 @@ class SchedulerStateTests(unittest.TestCase):
         self.assertEqual(state["requests"], {})
         self.assertEqual(state["request_order"], [])
         self.assertEqual(state["event_cursor"], 0)
+        self.assertEqual(state["lanes"]["p4"]["slot"], "P4")
+        self.assertEqual(state["lanes"]["p4"]["display_role"], "impl")
+        self.assertEqual(state["lanes"]["p4"]["display_slug"], "p4")
+        self.assertEqual(state["lanes"]["p4"]["dispatch_agent_name"], "agent-p4")
 
     def test_lane_generation_identity_is_preserved_on_set(self):
         updated = set_lane(
@@ -237,6 +255,57 @@ class SchedulerStateTests(unittest.TestCase):
             classify_delta({"change_type": "public_contract", "affected_paths": ["README.md"]}),
             "PLAN_REQUIRED",
         )
+
+    def test_set_lane_rejects_pending_name_assignment(self):
+        state = read_state(self.state_path)
+        state["lanes"]["p4"]["name_assignment"] = {"token": "token-a"}
+        self.state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        with self.assertRaisesRegex(Exception, "pending name assignment"):
+            set_lane(
+                self.state_path,
+                "p4",
+                generation=2,
+                state_value="ACTIVE",
+                receipt_path="p4-g2.json",
+                input_updates={},
+            )
+
+    def test_register_delta_skips_reserved_lane_and_dispatches_unrelated_lane(self):
+        state = read_state(self.state_path)
+        state["lanes"]["p3"]["state"] = "READY"
+        state["lanes"]["p3"]["owned_scope"] = []
+        state["lanes"]["p3"]["name_assignment"] = {"token": "token-a"}
+        self.state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        result = register_delta(
+            self.state_path,
+            self.request("req-other", ["scripts/new_helper.py"]),
+        )
+
+        saved = read_state(self.state_path)
+        self.assertEqual(result["status"], "DISPATCH")
+        self.assertEqual(result["lane_id"], "p4")
+        self.assertEqual(saved["lanes"]["p3"]["state"], "READY")
+
+    def test_register_delta_preserves_role_only_display_slug_null(self):
+        state = read_state(self.state_path)
+        state["lanes"]["p4"]["display_slug"] = "previous"
+        self.state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        register_delta(
+            self.state_path,
+            self.request(
+                "req-role-only",
+                ["scripts/controller_router.py"],
+                display_role="integration_review",
+                display_slug=None,
+            ),
+        )
+
+        lane_value = read_state(self.state_path)["lanes"]["p4"]
+        self.assertEqual(lane_value["display_role"], "integration_review")
+        self.assertIsNone(lane_value["display_slug"])
 
 
 if __name__ == "__main__":

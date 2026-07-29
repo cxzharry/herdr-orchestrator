@@ -21,7 +21,9 @@ class WriteLaneReceiptTests(unittest.TestCase):
                         "quality": {
                             "generation": 1,
                             "role": "worker",
-                            "agent_name": "worker-quality",
+                            "agent_name": "p2_impl_quality",
+                            "expected_agent_name": "p2_impl_quality",
+                            "dispatch_agent_name": "hdr_p2",
                             "pane_id": "w1:p2",
                             "session_id": "session-1",
                             "input_identity": {"base_sha": "abc"},
@@ -58,6 +60,7 @@ class WriteLaneReceiptTests(unittest.TestCase):
         )
 
         self.assertEqual(value["input_identity"], {"base_sha": "abc"})
+        self.assertEqual(value["agent_name"], "hdr_p2")
         self.assertIsNone(value["finding_or_blocker"])
         self.assertIsNone(value["resume_condition"])
         self.assertTrue(self.receipt.is_file())
