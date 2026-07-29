@@ -1,5 +1,6 @@
 import json
 import importlib.util
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,6 +44,63 @@ class PersistentP1BenchmarkTests(unittest.TestCase):
             rendered = json.dumps(payload)
             self.assertNotIn(str(Path.home()), rendered)
             self.assertNotIn("/tmp/", rendered)
+
+    def test_runner_records_raw_samples_from_real_transition_measurements(self):
+        summary = benchmark.run_trials(trials=3)
+
+        self.assertEqual(len(summary["raw_samples"]), 3)
+        for sample in summary["raw_samples"]:
+            self.assertEqual(sample["transitions"]["disjoint"], "P4")
+            self.assertEqual(sample["transitions"]["overlap"], "P3")
+            self.assertEqual(sample["transitions"]["capacity"], "CAPACITY_BLOCKED")
+            for metric, value in sample["timings_ms"].items():
+                self.assertGreater(value, 0, metric)
+                self.assertNotIn(value, {0.01, 1.0}, metric)
+
+    def test_baseline_report_input_validates_digest_and_records_fair_comparison(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            baseline_path = Path(dirname) / "baseline.json"
+            baseline = {
+                "schema_version": "herdr-clean-baseline-report/v1",
+                "raw_evidence": {
+                    "blocking_wait_probe": {
+                        "elapsed_seconds": 0.123,
+                        "exit_code": 0,
+                        "status": "timed_out_waiting",
+                    }
+                },
+                "comparison": {"superpowers": "N/A"},
+            }
+            baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+            digest = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+
+            summary = benchmark.run_trials(
+                trials=3,
+                baseline_report=baseline_path,
+                baseline_sha256=digest,
+            )
+
+            comparison = summary["comparison"]
+            self.assertEqual(comparison["primary_baseline"]["sha256"], digest)
+            self.assertEqual(
+                comparison["primary_baseline"]["old_blocking_wait_ms"],
+                123.0,
+            )
+            self.assertIn("revised_tick_ms", comparison["primary_baseline"])
+            self.assertEqual(comparison["superpowers"], "N/A")
+            self.assertNotIn("universal", json.dumps(comparison).lower())
+
+    def test_baseline_report_digest_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            baseline_path = Path(dirname) / "baseline.json"
+            baseline_path.write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "sha256"):
+                benchmark.run_trials(
+                    trials=3,
+                    baseline_report=baseline_path,
+                    baseline_sha256="0" * 64,
+                )
 
     def test_runner_rejects_less_than_three_trials(self):
         with self.assertRaisesRegex(ValueError, "at least 3"):
