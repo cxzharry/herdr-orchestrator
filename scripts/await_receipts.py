@@ -51,6 +51,59 @@ def _session_id(agent: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
+def reconcile_once(
+    state_path: Path,
+    lane_ids: list[str],
+    live_agents: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Return current receipt and liveness observations without waiting."""
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    by_session = {}
+    for agent in live_agents or []:
+        session = _session_id(agent)
+        if session:
+            by_session[session] = agent
+
+    result: dict[str, Any] = {"terminal": {}, "moved": {}, "missing": {}}
+    for lane_id in lane_ids:
+        lane = state.get("lanes", {}).get(lane_id)
+        if lane is None:
+            raise ReceiptWaitError(f"unknown lane: {lane_id}")
+        receipt_path = Path(lane["receipt_path"])
+        if receipt_path.is_file():
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            failures = validate_receipt(receipt, state)
+            if failures:
+                raise ReceiptWaitError(
+                    f"{lane_id} receipt invalid: " + "; ".join(failures)
+                )
+            result["terminal"][lane_id] = receipt["status"]
+            continue
+        if live_agents is None:
+            continue
+        session = lane.get("session_id")
+        if not session:
+            raise ReceiptWaitError(f"{lane_id} has no live session identity")
+        agent = by_session.get(session)
+        if agent is None:
+            result["missing"][lane_id] = {
+                "reason": "session_not_live",
+                "generation": lane["generation"],
+                "agent_name": lane["agent_name"],
+                "pane_id": lane["pane_id"],
+                "session_id": session,
+            }
+            continue
+        pane_id = agent.get("pane_id")
+        if pane_id and pane_id != lane.get("pane_id"):
+            result["moved"][lane_id] = {
+                "previous_pane_id": lane.get("pane_id"),
+                "pane_id": pane_id,
+                "session_id": session,
+            }
+    return result
+
+
 def _rebind_lane(
     state_path: Path,
     lane_id: str,

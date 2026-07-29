@@ -1,0 +1,47 @@
+{
+  "schema_version": "herdr-persistent-p1-scenario/v1",
+  "name": "two-active-lanes-multi-delta",
+  "active_lanes": [
+    {
+      "lane": "P2",
+      "delta_id": "active-docs",
+      "owned_paths": ["scripts/controller_router.py"],
+      "state": "ACTIVE"
+    },
+    {
+      "lane": "P3",
+      "delta_id": "active-scheduler",
+      "owned_paths": ["scripts/scheduler_state.py"],
+      "state": "ACTIVE"
+    }
+  ],
+  "deltas": [
+    {
+      "delta_id": "disjoint",
+      "affected_paths": ["scripts/run_watcher.py"],
+      "expected_state": "ACTIVE",
+      "expected_lane": "P4"
+    },
+    {
+      "delta_id": "overlap",
+      "affected_paths": ["scripts/scheduler_state.py"],
+      "expected_state": "DEPENDENCY_BLOCKED",
+      "expected_dependency": "P3"
+    },
+    {
+      "delta_id": "capacity",
+      "affected_paths": ["scripts/await_receipts.py"],
+      "expected_state": "CAPACITY_BLOCKED"
+    },
+    {
+      "delta_id": "plan_required",
+      "affected_paths": ["references/routing.md"],
+      "risk": "public_contract",
+      "expected_state": "PLAN_REQUIRED"
+    }
+  ],
+  "acceptance_commands": [
+    "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts.test_run_watcher scripts.test_await_receipts -v",
+    "PYTHONDONTWRITEBYTECODE=1 python3 benchmarks/persistent-p1/test_benchmark.py -v"
+  ]
+}
