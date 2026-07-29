@@ -1,27 +1,136 @@
 {
+  "comparison": {
+    "claim_scope": "scenario-specific baseline comparison only",
+    "primary_baseline": {
+      "old_blocking_wait_ms": 61.0,
+      "old_blocking_wait_status": "expected_timeout",
+      "revised_tick_ms": {
+        "median": 0.007625,
+        "p95": 0.052542
+      },
+      "schema_version": "herdr-clean-baseline-report/v1",
+      "sha256": "a9ce5ca2349d36e6704d913f0e9b2e8d3b417d63e45745f190b9fe811d5d9e0f"
+    },
+    "superpowers": "N/A"
+  },
   "methodology": "standard-library deterministic scheduler simulation",
   "metrics": {
     "capacity_blocked_ms": {
-      "median": 0.01,
-      "p95": 0.01
+      "median": 0.000709,
+      "p95": 0.001125
     },
     "disjoint_dispatch_ms": {
-      "median": 0.01,
-      "p95": 0.01
+      "median": 0.00225,
+      "p95": 0.041125
     },
     "overlap_queue_ms": {
-      "median": 0.01,
-      "p95": 0.01
+      "median": 0.000875,
+      "p95": 0.003708
     },
     "scenario_wall_ms": {
-      "median": 0.040334,
-      "p95": 0.189958
+      "median": 0.007958,
+      "p95": 0.053083
     },
     "scheduler_tick_ms": {
-      "median": 0.039917,
-      "p95": 0.188667
+      "median": 0.007625,
+      "p95": 0.052542
     }
   },
+  "raw_samples": [
+    {
+      "deltas": {
+        "capacity": {
+          "state": "CAPACITY_BLOCKED"
+        },
+        "disjoint": {
+          "assigned_lane": "P4",
+          "state": "ACTIVE"
+        },
+        "overlap": {
+          "dependency": "P3",
+          "state": "DEPENDENCY_BLOCKED"
+        },
+        "plan_required": {
+          "state": "PLAN_REQUIRED"
+        }
+      },
+      "timings_ms": {
+        "capacity_blocked_ms": 0.001125,
+        "disjoint_dispatch_ms": 0.041125,
+        "overlap_queue_ms": 0.003708,
+        "scenario_wall_ms": 0.053083,
+        "scheduler_tick_ms": 0.052542
+      },
+      "transitions": {
+        "capacity": "CAPACITY_BLOCKED",
+        "disjoint": "P4",
+        "overlap": "P3",
+        "plan_required": "PLAN_REQUIRED"
+      }
+    },
+    {
+      "deltas": {
+        "capacity": {
+          "state": "CAPACITY_BLOCKED"
+        },
+        "disjoint": {
+          "assigned_lane": "P4",
+          "state": "ACTIVE"
+        },
+        "overlap": {
+          "dependency": "P3",
+          "state": "DEPENDENCY_BLOCKED"
+        },
+        "plan_required": {
+          "state": "PLAN_REQUIRED"
+        }
+      },
+      "timings_ms": {
+        "capacity_blocked_ms": 0.000709,
+        "disjoint_dispatch_ms": 0.00225,
+        "overlap_queue_ms": 0.000875,
+        "scenario_wall_ms": 0.007958,
+        "scheduler_tick_ms": 0.007625
+      },
+      "transitions": {
+        "capacity": "CAPACITY_BLOCKED",
+        "disjoint": "P4",
+        "overlap": "P3",
+        "plan_required": "PLAN_REQUIRED"
+      }
+    },
+    {
+      "deltas": {
+        "capacity": {
+          "state": "CAPACITY_BLOCKED"
+        },
+        "disjoint": {
+          "assigned_lane": "P4",
+          "state": "ACTIVE"
+        },
+        "overlap": {
+          "dependency": "P3",
+          "state": "DEPENDENCY_BLOCKED"
+        },
+        "plan_required": {
+          "state": "PLAN_REQUIRED"
+        }
+      },
+      "timings_ms": {
+        "capacity_blocked_ms": 0.000542,
+        "disjoint_dispatch_ms": 0.001,
+        "overlap_queue_ms": 0.000583,
+        "scenario_wall_ms": 0.004792,
+        "scheduler_tick_ms": 0.004459
+      },
+      "transitions": {
+        "capacity": "CAPACITY_BLOCKED",
+        "disjoint": "P4",
+        "overlap": "P3",
+        "plan_required": "PLAN_REQUIRED"
+      }
+    }
+  ],
   "result": {
     "active_lanes": [
       "P2",
