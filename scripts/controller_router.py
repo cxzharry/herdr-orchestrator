@@ -95,6 +95,11 @@ def decide_controller_action(
                 "reason": "BLOCKED_NO_CONTROLLER",
             }
         controller = compact_identity(live_controller)
+        if _workspace_mismatch(current, controller):
+            return {
+                "action": "BLOCK",
+                "reason": "BLOCKED_WORKSPACE_MISMATCH",
+            }
         return {
             "action": "FORWARD",
             "controller_session_id": controller["session_id"],
@@ -236,6 +241,8 @@ class ControllerRouter:
     ) -> dict[str, Any]:
         current = compact_identity(current_agent)
         target = compact_identity(controller)
+        if _workspace_mismatch(current, target):
+            raise RouterError("workspace mismatch")
         scope = (
             controller.get("controller_scope")
             or controller_scope_id(target["session_id"])
@@ -319,6 +326,19 @@ def immutable_agent_identity(identity: dict[str, Any]) -> dict[str, Any]:
     return stable_agent_identity(
         identity.get("name"),
         identity.get("session_id"),
+    )
+
+
+def _workspace_mismatch(
+    current: dict[str, Any],
+    controller: dict[str, Any],
+) -> bool:
+    current_workspace = current.get("workspace_id")
+    controller_workspace = controller.get("workspace_id")
+    return bool(
+        current_workspace
+        and controller_workspace
+        and current_workspace != controller_workspace
     )
 
 

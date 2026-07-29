@@ -226,6 +226,10 @@ class WorkerPool:
                 )
             }
             for worker in current["workers"]:
+                self._validate_agent_workspace(
+                    worker["name"],
+                    ready[worker["name"]],
+                )
                 rebound = optional_session_id(ready[worker["name"]])
                 if rebound and rebound != previous_sessions[worker["name"]]:
                     worker["session_id"] = rebound
@@ -268,6 +272,10 @@ class WorkerPool:
         workers = []
         for request, response in zip(requested, started):
             self._validate_argv(response.get("argv") or [])
+            self._validate_agent_workspace(
+                request["name"],
+                ready[request["name"]],
+            )
             started_session = optional_session_id(ready[request["name"]])
             workers.append(
                 {
@@ -319,6 +327,7 @@ class WorkerPool:
                 agent = live_agent_for_worker(worker, live)
                 if not agent:
                     raise PoolError(f"{worker['name']} is no longer live")
+                self._validate_agent_workspace(worker["name"], agent)
                 if agent.get("name") != worker.get("name"):
                     worker["name"] = agent.get("name")
                 new_session = optional_session_id(agent)
@@ -368,6 +377,7 @@ class WorkerPool:
             if not agent:
                 missing.append(worker)
                 continue
+            self._validate_agent_workspace(worker["name"], agent)
             if agent.get("name") != worker.get("name"):
                 worker["name"] = agent.get("name")
                 rebound = True
@@ -474,6 +484,7 @@ class WorkerPool:
             replacements = {}
             for request in requested:
                 agent = ready[request["name"]]
+                self._validate_agent_workspace(request["name"], agent)
                 started_session = optional_session_id(agent)
                 replacements[request["name"]] = {
                     **request,
@@ -525,6 +536,9 @@ class WorkerPool:
         stored_scope = current.get("controller_scope")
         if stored_scope and stored_scope != self.controller_scope:
             raise PoolError("controller scope mismatch")
+        stored_workspace = current.get("workspace_id")
+        if stored_workspace and stored_workspace != self.workspace_id:
+            raise PoolError("workspace mismatch")
         changed = False
         if not stored_scope:
             current["controller_scope"] = self.controller_scope
@@ -542,6 +556,15 @@ class WorkerPool:
             return changed
         current["herdr_session_key"] = self.herdr_session_key
         return True
+
+    def _validate_agent_workspace(
+        self,
+        worker_name: str,
+        agent: dict[str, Any],
+    ) -> None:
+        workspace = agent.get("workspace_id")
+        if workspace and workspace != self.workspace_id:
+            raise PoolError(f"{worker_name} workspace mismatch")
 
     @staticmethod
     def _validate_pending_terminal(
@@ -794,11 +817,11 @@ def default_state_path(
     *,
     root: Path | None = None,
 ) -> Path:
-    del workspace_id
     scope = validate_controller_scope(controller_scope)
+    workspace = str(workspace_id).replace("/", "_")
     return (
         (root or Path.home() / ".codex" / "herdr-pools")
-        / f"active-{current_herdr_session_key()}-{scope}.json"
+        / f"active-{current_herdr_session_key()}-{workspace}-{scope}.json"
     )
 
 

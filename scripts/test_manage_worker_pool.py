@@ -14,11 +14,12 @@ def live_agent(
     pane: str,
     session: str,
     status: str = "done",
+    workspace_id: str | None = None,
 ) -> dict:
     return {
         "name": name,
         "pane_id": pane,
-        "workspace_id": "w6",
+        "workspace_id": workspace_id or pane.split(":")[0],
         "terminal_id": f"term-{pane}",
         "agent_status": status,
         "agent_session": {"value": session},
@@ -37,6 +38,7 @@ class FakeClient:
         sessions_on_reset=True,
         sessions_on_list_after=None,
         invalid_argv_once=False,
+        workspace_id="w6",
     ):
         self.agents = list(agents or [])
         self.calls = []
@@ -44,6 +46,7 @@ class FakeClient:
         self.sessions_on_reset = sessions_on_reset
         self.sessions_on_list_after = sessions_on_list_after
         self.invalid_argv_once = invalid_argv_once
+        self.workspace_id = workspace_id
         self.list_count = 0
 
     def list_agents(self):
@@ -63,7 +66,7 @@ class FakeClient:
     def create_panes(self, count, cwd):
         self.calls.append(("create_panes", count, cwd))
         first = len(self.agents) + 3
-        return [f"w6:p{index + first}" for index in range(count)]
+        return [f"{self.workspace_id}:p{index + first}" for index in range(count)]
 
     def start_workers(self, workers):
         self.calls.append(("start_workers", workers))
@@ -364,7 +367,7 @@ class WorkerPoolTests(unittest.TestCase):
 
         self.assertFalse(any(call[0] == "reset" for call in client.calls))
 
-    def test_same_contract_controller_attaches_to_busy_workers(self):
+    def test_same_contract_controller_attaches_to_busy_workers_in_same_workspace(self):
         client = FakeClient()
         pool = self.pool(client)
         pool.prepare("contract-a", "/tmp/project", 3)
@@ -374,8 +377,8 @@ class WorkerPoolTests(unittest.TestCase):
         result = WorkerPool(
             client=client,
             state_path=self.state_path,
-            workspace_id="w8",
-            anchor_pane_id="w8:p1",
+            workspace_id="w6",
+            anchor_pane_id="w6:p1",
             controller_scope="aaaaaaaa",
         ).prepare("contract-a", "/tmp/project", 3)
 
@@ -405,7 +408,7 @@ class WorkerPoolTests(unittest.TestCase):
         with self.assertRaisesRegex(PoolError, "contract mismatch"):
             pool.bind("contract-b")
 
-    def test_same_pool_is_reused_by_controller_in_another_workspace(self):
+    def test_same_pool_is_not_reused_by_controller_in_another_workspace(self):
         client = FakeClient()
         self.pool(client).prepare("contract-a", "/tmp/project", 3)
         client.calls.clear()
@@ -417,13 +420,33 @@ class WorkerPoolTests(unittest.TestCase):
             controller_scope="aaaaaaaa",
         )
 
-        result = moved_controller.prepare("contract-a", "/tmp/project", 3)
+        with self.assertRaisesRegex(PoolError, "workspace mismatch"):
+            moved_controller.prepare("contract-a", "/tmp/project", 3)
 
-        self.assertEqual(result["action"], "reused")
-        self.assertEqual(client.calls, [("list",)])
+        self.assertFalse(any(call[0] in {"reset", "start_workers"} for call in client.calls))
 
-    def test_unique_legacy_workspace_ledger_is_adopted_as_active_pool(self):
-        client = FakeClient()
+    def test_w6_controller_does_not_adopt_same_socket_w5_workers(self):
+        w5_agents = [
+            live_agent("hdr_p2", "w5:p2", "session-w5-p2"),
+            live_agent("hdr_p3", "w5:p3", "session-w5-p3"),
+            live_agent("hdr_p4", "w5:p4", "session-w5-p4"),
+        ]
+        client = FakeClient(w5_agents)
+
+        result = self.pool(client).prepare("contract-a", "/tmp/project", 3)
+
+        self.assertEqual(result["action"], "created")
+        self.assertTrue(all(worker["pane_id"].startswith("w6:p") for worker in result["workers"]))
+        self.assertTrue(all(worker["workspace_id"] == "w6" for worker in result["workers"]))
+        self.assertTrue(
+            {worker["session_id"] for worker in result["workers"]}.isdisjoint(
+                {"session-w5-p2", "session-w5-p3", "session-w5-p4"}
+            )
+        )
+        self.assertFalse(any(call[0] == "reset" for call in client.calls))
+
+    def test_unique_legacy_workspace_ledger_is_adopted_in_same_workspace(self):
+        client = FakeClient(workspace_id="w5")
         legacy_path = Path(self.tempdir.name) / "w5.json"
         WorkerPool(
             client=client,
@@ -438,8 +461,8 @@ class WorkerPoolTests(unittest.TestCase):
         result = WorkerPool(
             client=client,
             state_path=active_path,
-            workspace_id="w8",
-            anchor_pane_id="w8:p1",
+            workspace_id="w5",
+            anchor_pane_id="w5:p1",
             controller_scope="aaaaaaaa",
         ).prepare("contract-a", "/tmp/project", 3)
 
@@ -448,7 +471,7 @@ class WorkerPoolTests(unittest.TestCase):
         self.assertFalse(legacy_path.exists())
         self.assertEqual(client.calls, [("list",)])
 
-    def test_default_pool_ledger_is_not_workspace_scoped(self):
+    def test_default_pool_ledger_is_workspace_scoped(self):
         with patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr-a.sock"}):
             first = default_state_path("w6", "aaaaaaaa")
             moved = default_state_path("w8", "aaaaaaaa")
@@ -456,8 +479,10 @@ class WorkerPoolTests(unittest.TestCase):
             another_session = default_state_path("w6", "aaaaaaaa")
 
         self.assertTrue(first.name.startswith("active-"))
-        self.assertEqual(moved, first)
+        self.assertNotEqual(moved, first)
         self.assertNotEqual(another_session, first)
+        self.assertIn("w6", first.name)
+        self.assertIn("w8", moved.name)
 
     def test_default_pool_ledger_is_controller_scope_scoped(self):
         with patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr-a.sock"}):
@@ -482,16 +507,16 @@ class WorkerPoolTests(unittest.TestCase):
         client = FakeClient()
         pool = self.pool(client)
         pool.prepare("contract-a", "/tmp/project", 3)
-        client.agents[1]["pane_id"] = "w8:p9"
-        client.agents[1]["workspace_id"] = "w8"
+        client.agents[1]["pane_id"] = "w6:p9"
+        client.agents[1]["workspace_id"] = "w6"
         client.calls.clear()
 
         result = pool.prepare("contract-a", "/tmp/project", 3)
 
         self.assertEqual(result["action"], "rebound")
         worker = next(worker for worker in result["workers"] if worker["slot"] == "P3")
-        self.assertEqual(worker["pane_id"], "w8:p9")
-        self.assertEqual(worker["workspace_id"], "w8")
+        self.assertEqual(worker["pane_id"], "w6:p9")
+        self.assertEqual(worker["workspace_id"], "w6")
         self.assertFalse(any(call[0] == "start_workers" for call in client.calls))
 
     def test_prepare_recreates_only_a_closed_worker(self):

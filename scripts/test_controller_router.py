@@ -70,6 +70,15 @@ class ControllerDecisionTests(unittest.TestCase):
         self.assertEqual(decision["action"], "FORWARD")
         self.assertEqual(decision["controller_session_id"], "session-p1")
 
+    def test_worker_in_another_workspace_never_forwards_to_controller(self):
+        current = agent("hdr_p2", "w6:p2", "session-worker")
+        live = agent("hdr_p1", "w5:p1", "session-p1")
+
+        decision = decide_controller_action(current, live_controller=live)
+
+        self.assertEqual(decision["action"], "BLOCK")
+        self.assertEqual(decision["reason"], "BLOCKED_WORKSPACE_MISMATCH")
+
     def test_named_non_controller_blocks_without_existing_controller(self):
         current = agent("hdr_p7", "w1:p7", "session-worker")
 
@@ -205,6 +214,17 @@ class ControllerRouterTests(unittest.TestCase):
         signals = [call for call in client.calls if call[0] == "signal_agent"]
         self.assertEqual(signals, [("signal_agent", "hdr_p1", first["request_id"])])
 
+    def test_worker_request_rejects_cross_workspace_controller(self):
+        current = agent("hdr_p3", "w6:p3", "session-worker", terminal="term-w")
+        controller = agent("hdr_p1", "w5:p1", "session-p1", status="idle")
+        client = FakeClient([controller, current])
+        router = ControllerRouter(client=client, inbox_root=self.root, socket_key="sock-a")
+
+        with self.assertRaisesRegex(RouterError, "workspace mismatch"):
+            router.forward_request(current, controller, {"text": "wrong space"})
+
+        self.assertFalse(any(call[0] == "signal_agent" for call in client.calls))
+
     def test_busy_controller_queues_without_signal(self):
         current = agent("hdr_p4", "w1:p4", "session-worker", terminal="term-w")
         controller = agent("hdr_p1", "w1:p1", "session-p1", status="working")
@@ -302,7 +322,7 @@ class ControllerRouterTests(unittest.TestCase):
             request,
         )
         renamed = router.forward_request(
-            agent("p2_impl_schema", "w2:p8", "session-worker"),
+            agent("p2_impl_schema", "w1:p8", "session-worker"),
             controller,
             request,
         )
