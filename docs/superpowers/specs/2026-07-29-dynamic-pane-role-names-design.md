@@ -1,6 +1,6 @@
 # Dynamic Pane Role Names Design
 
-**Status:** Draft for user review
+**Status:** Approved, extended for concurrent-space isolation on 2026-07-29
 
 **Scope:** Make every Herdr agent name show both its P1-P9 slot and its current
 delivery role/task without changing stable slot, session, ownership, or receipt
@@ -26,6 +26,7 @@ p{slot}_{role_slug}_{task_slug}
 Examples:
 
 - `p1_orchestrator`
+- `p1_orchestrator_a1b2` when another space already has a live P1
 - `p2_impl_auth`
 - `p3_impl_schema`
 - `p4_verify_checkout`
@@ -65,6 +66,7 @@ identity.
 Stable identity remains:
 
 - logical slot: P1-P9;
+- controller scope created for the main chat session;
 - Codex session ID;
 - current lane and generation;
 - owned scope and input identity in control state.
@@ -81,9 +83,23 @@ The controller must recognize a slot from structured state or the normalized
 
 ### Controller
 
-The active chat agent becomes `p1_orchestrator`. It keeps that name across
-deliveries and pane movement until controller ownership is explicitly
-transferred or the process exits.
+The active main chat agent becomes P1 for its own controller scope. When only
+one P1 exists, it may use `p1_orchestrator`. Concurrent spaces append the
+shortest deterministic controller-scope suffix that makes the live name
+unique, for example `p1_orchestrator_a1b2`. It keeps that controller scope
+across deliveries and pane movement until ownership is explicitly transferred
+or the process exits.
+
+Controller identity is not socket-global. Multiple spaces may have independent
+P1 sessions on the same Herdr socket. Inbox, scheduler state, watcher events,
+worker pool, P5 integration ownership, and P6-P9 review receipts are keyed by
+controller scope plus contract. A worker may live in a different workspace
+after pane creation or movement, but its lease still belongs to exactly one
+controller scope.
+
+An unnamed main chat may promote even when another scoped P1 exists. A P2-P9
+agent never guesses the nearest P1 by workspace or name; it forwards only to
+the controller session recorded in its current lane/pool state.
 
 ### Warm implementation pool
 
@@ -157,6 +173,12 @@ Before every prompt:
 5. atomically update control state with the current name and pane;
 6. prompt by the verified dynamic name.
 
+After context compaction or restart, P1 must re-read its controller-scoped
+control state and take only the next scheduler action. It must not infer that
+"integration/review remains" and run code, tests, or browser checks itself.
+When P5 is applicable, the scheduler returns a P5 dispatch; applicable P6-P9
+review remains a separate recorded gate.
+
 For a moved pane:
 
 1. locate the stable session;
@@ -196,6 +218,10 @@ first scheduler tick after upgrade:
 
 New runs use dynamic names from bootstrap.
 
+Legacy socket-global P1 state migrates to one controller scope owned by the
+recorded P1 session. Another active main chat creates a separate scope; it does
+not reuse, reset, or target lanes leased to the migrated controller.
+
 ## Verification
 
 Test-first scenarios:
@@ -211,6 +237,10 @@ Test-first scenarios:
 7. A legacy `hdr_pN` run migrates once without losing ownership or receipts.
 8. Collision and 32-character truncation are deterministic.
 9. Contract, asset, and exact-render validators pass with the naming legend.
+10. Two spaces promote independent P1 sessions, dispatch same-numbered logical
+    slots without live-name collision, and never reuse another scope's P5-P9.
+11. After compaction, P1 routes integration verification to P5 and applicable
+    QC/design to P7/P8 without editing or testing in the controller pane.
 
 ## Success Criteria
 
@@ -218,8 +248,11 @@ Test-first scenarios:
 - Implementation and applicable review panes expose the current task/matrix
   when approved metadata provides one.
 - Rename happens before work dispatch.
-- P1 remains `p1_orchestrator`.
+- Each main chat has an independent P1 controller scope; concurrent names
+  remain unique and role-readable.
 - Pane movement and legacy migration preserve stable identity and active work.
 - No lifecycle status is duplicated in the name.
 - Existing Compact/Standard routing, receipts, P1 boundary, graph topology,
   and deployment behavior remain unchanged.
+- P1 never implements, edits, tests, integrates, reviews, deploys, or performs
+  browser verification, including after compaction.
