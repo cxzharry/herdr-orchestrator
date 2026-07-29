@@ -1,0 +1,50 @@
+{
+  "methodology": "standard-library deterministic scheduler simulation",
+  "metrics": {
+    "capacity_blocked_ms": {
+      "median": 0.01,
+      "p95": 0.01
+    },
+    "disjoint_dispatch_ms": {
+      "median": 0.01,
+      "p95": 0.01
+    },
+    "overlap_queue_ms": {
+      "median": 0.01,
+      "p95": 0.01
+    },
+    "scenario_wall_ms": {
+      "median": 0.040334,
+      "p95": 0.189958
+    },
+    "scheduler_tick_ms": {
+      "median": 0.039917,
+      "p95": 0.188667
+    }
+  },
+  "result": {
+    "active_lanes": [
+      "P2",
+      "P3"
+    ],
+    "deltas": {
+      "capacity": {
+        "state": "CAPACITY_BLOCKED"
+      },
+      "disjoint": {
+        "assigned_lane": "P4",
+        "state": "ACTIVE"
+      },
+      "overlap": {
+        "dependency": "P3",
+        "state": "DEPENDENCY_BLOCKED"
+      },
+      "plan_required": {
+        "state": "PLAN_REQUIRED"
+      }
+    }
+  },
+  "scenario": "two-active-lanes-multi-delta",
+  "schema_version": "herdr-persistent-p1-benchmark/v1",
+  "trials": 3
+}

@@ -122,13 +122,14 @@ The same small benchmark also measured why routing matters:
 
 Cross-workspace recovery was also exercised for pool adoption, moved-pane
 rebinding, closed-worker replacement, and delayed first-session binding. The
-current repository has 45 source tests; 22 of them are the focused worker-pool
+current repository has 78 script tests; 22 of them are the focused worker-pool
 suite.
 
 Inspectable result snapshots:
 
 - [`benchmarks/2026-07-28-compact-runtime.json`](benchmarks/2026-07-28-compact-runtime.json)
 - [`benchmarks/2026-07-28-multi-module.json`](benchmarks/2026-07-28-multi-module.json)
+- [`benchmarks/2026-07-29-persistent-p1.json`](benchmarks/2026-07-29-persistent-p1.json)
 
 These are local single-run measurements, not a universal benchmark. They were
 recorded with Herdr 0.7.5. The result snapshots expose the scenario inputs,
@@ -283,7 +284,7 @@ P2-P9. P2-P4 are retained as the warm pool. P5-P9 are started only when
 applicable. No agent pane is auto-closed; close panes manually if you no longer
 want them.
 
-The full discovery command above currently runs 45 tests. The focused installed
+The full discovery command above currently runs 78 script tests. The focused installed
 worker-pool suite runs 22:
 
 ```bash
