@@ -24,6 +24,8 @@ except ModuleNotFoundError:
 
 SETTLED_STATUSES = {"idle", "done"}
 SLOTS = ("P2", "P3", "P4")
+START_WORKER_BUSY_TIMEOUT = 2.0
+START_WORKER_BUSY_BACKOFF = 0.05
 
 
 class PoolError(RuntimeError):
@@ -685,13 +687,18 @@ class HerdrClient:
             "-c",
             "mcp_servers.openaiDeveloperDocs.enabled=false",
         ]
-        try:
-            payload = self._run(args)
-        except PoolError as error:
-            if "agent_pane_busy" not in str(error):
-                raise
-            time.sleep(0.25)
-            payload = self._run(args)
+        deadline = time.monotonic() + START_WORKER_BUSY_TIMEOUT
+        while True:
+            try:
+                payload = self._run(args)
+                break
+            except PoolError as error:
+                if "agent_pane_busy" not in str(error):
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise
+                time.sleep(min(START_WORKER_BUSY_BACKOFF, remaining))
         return payload["result"]
 
     def ensure_ready(

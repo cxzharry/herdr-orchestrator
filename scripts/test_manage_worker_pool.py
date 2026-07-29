@@ -6,7 +6,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.manage_worker_pool import JsonState, PoolError, WorkerPool, default_state_path
+from scripts.manage_worker_pool import (
+    HerdrClient,
+    JsonState,
+    PoolError,
+    WorkerPool,
+    default_state_path,
+)
 
 
 def live_agent(
@@ -133,6 +139,49 @@ class FakeClient:
         agent["name"] = f"orphan_{name}"
 
 
+class BusyStartClient(HerdrClient):
+    def __init__(self, busy_before_success: int | None):
+        super().__init__("w6:p1")
+        self.busy_before_success = busy_before_success
+        self.calls = []
+        self.sleeps = []
+        self.now = 0.0
+
+    def _run(self, args):
+        self.calls.append(list(args))
+        if (
+            self.busy_before_success is None
+            or len(self.calls) <= self.busy_before_success
+        ):
+            raise PoolError(
+                '{"kind": "agent_pane_busy", "message": "pane is not ready"}'
+            )
+        return {
+            "result": {
+                "agent": live_agent(
+                    args[2],
+                    args[6],
+                    f"session-{args[2]}",
+                ),
+                "argv": [
+                    "codex",
+                    "--yolo",
+                    "--model",
+                    "gpt-5.5",
+                    "-c",
+                    'model_reasoning_effort="medium"',
+                ],
+            }
+        }
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
 class WorkerPoolTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -203,6 +252,45 @@ class WorkerPoolTests(unittest.TestCase):
             ["p2_worker_ready", "p3_worker_ready", "p4_worker_ready"],
         )
         self.assertTrue(all(worker["pane_id"].startswith("w6:p") for worker in starts))
+
+    def test_start_worker_retries_transient_busy_shell_before_success(self):
+        client = BusyStartClient(busy_before_success=3)
+
+        with (
+            patch("scripts.manage_worker_pool.time.monotonic", client.monotonic),
+            patch("scripts.manage_worker_pool.time.sleep", client.sleep),
+        ):
+            result = client._start_worker(
+                {"slot": "P4", "name": "p4_worker_ready", "pane_id": "w6:p1C"}
+            )
+
+        self.assertEqual(len(client.calls), 4)
+        self.assertEqual(len(client.sleeps), 3)
+        self.assertTrue(all(delay == 0.05 for delay in client.sleeps))
+        argv = " ".join(result["argv"])
+        self.assertIn("--yolo", argv)
+        self.assertIn("--model gpt-5.5", argv)
+        self.assertIn('model_reasoning_effort="medium"', argv)
+        self.assertTrue(all(call[6] == "w6:p1C" for call in client.calls))
+
+    def test_start_worker_busy_timeout_is_bounded_and_fails_closed(self):
+        client = BusyStartClient(busy_before_success=None)
+
+        with (
+            patch("scripts.manage_worker_pool.time.monotonic", client.monotonic),
+            patch("scripts.manage_worker_pool.time.sleep", client.sleep),
+            patch("scripts.manage_worker_pool.START_WORKER_BUSY_TIMEOUT", 0.12),
+            patch("scripts.manage_worker_pool.START_WORKER_BUSY_BACKOFF", 0.05),
+            self.assertRaisesRegex(PoolError, "agent_pane_busy"),
+        ):
+            client._start_worker(
+                {"slot": "P4", "name": "p4_worker_ready", "pane_id": "w6:p1C"}
+            )
+
+        self.assertGreaterEqual(client.now, 0.12)
+        self.assertLess(client.now, 0.17)
+        self.assertEqual(len(client.calls), len(client.sleeps) + 1)
+        self.assertTrue(all(call[2] == "p4_worker_ready" for call in client.calls))
 
     def test_first_prepare_uses_visible_ready_names(self):
         result = self.pool(FakeClient()).prepare(
