@@ -266,29 +266,33 @@ class WorkerPool:
             {"slot": slot, "name": name, "pane_id": pane}
             for slot, name, pane in zip(slots, names, panes)
         ]
-        started = self.client.start_workers(requested)
-        ready = {
-            agent["name"]: agent
-            for agent in self.client.ensure_ready(requested)
-        }
-        workers = []
-        for request, response in zip(requested, started):
-            self._validate_argv(response.get("argv") or [])
-            self._validate_agent_workspace(
-                request["name"],
-                ready[request["name"]],
-            )
-            started_session = optional_session_id(ready[request["name"]])
-            workers.append(
-                {
-                    **request,
-                    "session_id": started_session,
-                    "workspace_id": ready[request["name"]].get("workspace_id"),
-                    "terminal_id": ready[request["name"]].get("terminal_id"),
-                    "input_ready": True,
-                    "rebind_pending": started_session is None,
-                }
-            )
+        try:
+            started = self.client.start_workers(requested)
+            ready = {
+                agent["name"]: agent
+                for agent in self.client.ensure_ready(requested)
+            }
+            workers = []
+            for request, response in zip(requested, started):
+                self._validate_argv(response.get("argv") or [])
+                self._validate_agent_workspace(
+                    request["name"],
+                    ready[request["name"]],
+                )
+                started_session = optional_session_id(ready[request["name"]])
+                workers.append(
+                    {
+                        **request,
+                        "session_id": started_session,
+                        "workspace_id": ready[request["name"]].get("workspace_id"),
+                        "terminal_id": ready[request["name"]].get("terminal_id"),
+                        "input_ready": True,
+                        "rebind_pending": started_session is None,
+                    }
+                )
+        except Exception:
+            self._cleanup_partial_initial_start(requested)
+            raise
 
         value = {
             "schema_version": "herdr-worker-pool/v2",
@@ -514,6 +518,35 @@ class WorkerPool:
             self._replace_workers(current, retry)
             self.state.save(current)
             raise
+
+    def _cleanup_partial_initial_start(
+        self,
+        requested: list[dict[str, str]],
+    ) -> None:
+        live = self.client.list_agents()
+        by_pane = {
+            agent.get("pane_id"): agent
+            for agent in live
+            if agent.get("pane_id")
+        }
+        failures = []
+        for request in requested:
+            agent = by_pane.get(request["pane_id"])
+            if not agent:
+                continue
+            if agent.get("name") != request["name"]:
+                failures.append(
+                    f"{request['pane_id']} has unexpected agent {agent.get('name')}"
+                )
+                continue
+            try:
+                self.client.quarantine(request["pane_id"], request["name"])
+            except (PoolError, StopIteration) as error:
+                failures.append(f"{request['pane_id']}: {error}")
+        if failures:
+            raise PoolError(
+                "partial worker start cleanup failed: " + "; ".join(failures)
+            )
 
     @staticmethod
     def _replace_workers(
@@ -804,10 +837,12 @@ class HerdrClient:
     def reset(self, name: str) -> None:
         self._run(["agent", "prompt", name, "/new"])
 
-    def quarantine(self, name: str) -> None:
+    def quarantine(self, target: str, requested_name: str | None = None) -> None:
         suffix = f"{time.monotonic_ns():x}"[-8:]
-        orphan = f"orphan_{name.removeprefix('hdr_')}_{suffix}"
-        self._run(["agent", "rename", name, orphan])
+        base = requested_name or target
+        base = re.sub(r"[^a-zA-Z0-9_]+", "_", base.removeprefix("hdr_")).strip("_")
+        orphan = f"orphan_{base}_{suffix}"
+        self._run(["agent", "rename", target, orphan])
 
     def rename_agent(self, target: str, name: str) -> None:
         self._run(["agent", "rename", target, name])
