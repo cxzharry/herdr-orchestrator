@@ -153,6 +153,44 @@ class ControllerRouterTests(unittest.TestCase):
         self.assertEqual(result["action"], "QUEUED")
         self.assertFalse(any(call[0] == "signal_agent" for call in client.calls))
 
+    def test_request_id_ignores_volatile_runtime_status(self):
+        request = {"text": "same user delta"}
+        ids = []
+        for status in ("idle", "working", "blocked"):
+            current = agent("hdr_p4", "w1:p4", "session-worker", status=status)
+            controller = agent("hdr_p1", "w1:p1", "session-p1", status=status)
+            router = ControllerRouter(
+                client=FakeClient([controller, current]),
+                inbox_root=self.root / status,
+                socket_key="sock-a",
+            )
+
+            ids.append(
+                router.forward_request(current, controller, request)["request_id"]
+            )
+
+        self.assertEqual(ids, [ids[0], ids[0], ids[0]])
+
+    def test_request_id_changes_for_different_request_or_source_identity(self):
+        controller = agent("hdr_p1", "w1:p1", "session-p1", status="idle")
+        current = agent("hdr_p4", "w1:p4", "session-worker")
+        router = ControllerRouter(
+            client=FakeClient([controller, current]),
+            inbox_root=self.root,
+            socket_key="sock-a",
+        )
+
+        first = router.forward_request(current, controller, {"text": "delta-a"})
+        different_request = router.forward_request(current, controller, {"text": "delta-b"})
+        different_source = router.forward_request(
+            agent("hdr_p4", "w1:p4", "session-other"),
+            controller,
+            {"text": "delta-a"},
+        )
+
+        self.assertNotEqual(first["request_id"], different_request["request_id"])
+        self.assertNotEqual(first["request_id"], different_source["request_id"])
+
 
 if __name__ == "__main__":
     unittest.main()
