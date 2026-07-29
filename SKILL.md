@@ -1,6 +1,6 @@
 ---
 name: herdr-orchestrator
-description: Execute an approved implementation plan through directly controllable Herdr lanes to verified delivery.
+description: Use when an implementation plan is approved and Herdr is the selected execution backend; do not use while brainstorming, drafting, or approving the plan.
 ---
 
 # Herdr Orchestrator
@@ -10,9 +10,9 @@ control.
 
 ## Read first
 
-Read [routing](references/routing.md) first and select a gate. For a compact
-gate, stop there. For a standard gate, inspect
-[the graph](references/delivery-flow.md) and call `view_image` on
+Validate the [plan contract](references/plan-contract.md), then read
+[routing](references/routing.md). Compact stops there; Standard inspects
+[the graph](references/delivery-flow.md) with `view_image` on
 `assets/delivery-flow.png`.
 
 Load details only when applicable:
@@ -39,7 +39,7 @@ Load details only when applicable:
 
 ## Runtime contract
 
-1. Validate approved inputs; do not reopen discovery or planning.
+1. Validate approved logical lanes; reject live pane IDs and do not plan.
 2. Select the compact or standard gate defined in `routing.md`.
 3. Reuse workers; cold-start only missing or incompatible capacity.
 4. Dispatch only ready lanes with `--yolo` and roster model/effort.
@@ -51,6 +51,5 @@ Load details only when applicable:
    it consumes worker bytes. P5 smokes and P6 reviews the same artifact.
 8. Deliver only after applicable gates pass.
 
-Use live state for progress. Persist only material transitions, terminal
-receipts, and evidence references. P1 output is at most 20 physical lines:
-decisions, blockers, identities, and next transition.
+Persist only transitions, receipts, and evidence. Keep P1 output within 20
+lines.

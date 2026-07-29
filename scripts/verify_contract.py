@@ -28,6 +28,7 @@ EXPECTED_PANES = {
     "P9": ("Persona", "gpt-5.5", "medium"),
 }
 REQUIRED_REFERENCES = {
+    "references/plan-contract.md",
     "references/routing.md",
     "references/git-integration.md",
     "references/review-deploy.md",
@@ -89,6 +90,14 @@ def verify() -> dict:
     roster = parse_roster(skill)
     if roster != EXPECTED_PANES:
         failures.append("model roster must match the canonical P1-P9 contract")
+    trigger_markers = {
+        "approved plan": "description: Use when an implementation plan is approved",
+        "Herdr backend": "Herdr is the selected execution backend",
+        "no planning": "do not use while brainstorming, drafting, or approving the plan",
+    }
+    for name, marker in trigger_markers.items():
+        if marker not in skill:
+            failures.append(f"skill trigger is missing {name}: {marker}")
 
     for relative in sorted(REQUIRED_REFERENCES):
         path = SKILL_ROOT / relative
@@ -117,6 +126,21 @@ def verify() -> dict:
         failures.append("missing atomic on-demand lane registrar")
 
     routing = reference_text.get("references/routing.md", "")
+    plan_contract = " ".join(
+        reference_text.get("references/plan-contract.md", "").split()
+    )
+    plan_markers = {
+        "Herdr section": "## Herdr Delivery Contract",
+        "logical lane": "logical `lane_id`",
+        "worker slots": "implementation lanes use P2-P4",
+        "review applicability": "P7-P9 are explicitly applicable or not applicable",
+        "no pane identity": "Never record an `agent_name`, `pane_id`, `session_id`, or `lease_id`",
+        "approval gate": "not executable until the user approves it",
+        "runtime binding": "`control-state.json`",
+    }
+    for name, marker in plan_markers.items():
+        if marker not in plan_contract:
+            failures.append(f"plan contract is missing {name}: {marker}")
     for field in sorted(LANE_BRIEF_FIELDS):
         if field not in routing:
             failures.append(f"routing brief is missing field: {field}")
