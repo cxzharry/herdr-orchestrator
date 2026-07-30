@@ -1,0 +1,44 @@
+{
+  "schema_version": "herdr-benchmark-scenario/v1",
+  "scenario_id": "compact-control-plane-v1",
+  "description": "End-to-end implementation of three disjoint low-risk edits from a pristine control-plane template.",
+  "base_sha": "9f5ece92b836d240a95463949e503b0dab366631",
+  "base_snapshot": "/Users/haido/.codex/herdr-benchmarks/control-plane-v1/template",
+  "isolation_copy_procedure": [
+    "copy pristine base snapshot to an isolated candidate workspace",
+    "start timing when the implementation task is submitted",
+    "apply edits that change lane-a.txt, lane-b.txt, and lane-c.txt from 0 to 1",
+    "stop timing only after the acceptance command passes"
+  ],
+  "task_input": {
+    "summary": "Set lane-a.txt to A=1, lane-b.txt to B=1, and lane-c.txt to C=1 using isolated lane ownership.",
+    "owned_paths": [
+      "lane-a.txt",
+      "lane-b.txt",
+      "lane-c.txt"
+    ]
+  },
+  "acceptance_command": [
+    "python3",
+    "verify.py"
+  ],
+  "deep_immutability_command": null,
+  "source_artifacts": [
+    {
+      "path": "/Users/haido/.codex/herdr-benchmarks/control-plane-v1/template/lane-a.txt",
+      "sha256": "526679df7745ef41b4aa5b95d88cd23681f63f412b3da32dd366ae29035c9ea7"
+    },
+    {
+      "path": "/Users/haido/.codex/herdr-benchmarks/control-plane-v1/template/lane-b.txt",
+      "sha256": "ceb59be4b779e114dd4d20d67c5190a89eaa3a40ddb7d888824460c6cc7de9dc"
+    },
+    {
+      "path": "/Users/haido/.codex/herdr-benchmarks/control-plane-v1/template/lane-c.txt",
+      "sha256": "11359ad34557291b346628f638c626dde9701c6b3ef4eb3449e806d66a46ead3"
+    },
+    {
+      "path": "/Users/haido/.codex/herdr-benchmarks/control-plane-v1/template/verify.py",
+      "sha256": "eefba4623382137c79ae8e5f2e6d13657e1f2026162a156e3a2e2e028b4d3297"
+    }
+  ]
+}

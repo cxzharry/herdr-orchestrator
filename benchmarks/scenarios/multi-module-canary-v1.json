@@ -1,0 +1,79 @@
+{
+  "schema_version": "herdr-benchmark-scenario/v1",
+  "scenario_id": "multi-module-canary-v1",
+  "description": "End-to-end implementation of canary dataset promotion from the pristine dataset-promotion base.",
+  "base_sha": "405cf96fd675c607768dafec8ede1aeae5725359",
+  "base_snapshot": "/Users/haido/herdr-delivery-benchmark-runs/herdr",
+  "isolation_copy_procedure": [
+    "create a clean isolated worktree from base_sha",
+    "start timing when the approved plan and design spec are submitted",
+    "send the inclusive-threshold clarification after all three implementation lanes are active",
+    "stop timing only after acceptance and deployment verification pass"
+  ],
+  "task_input": {
+    "plan_path": "/Users/haido/herdr-delivery-benchmark-runs/herdr/docs/superpowers/plans/2026-07-28-dataset-promotion-benchmark.md",
+    "plan_sha256": "c84d179b49fa32e97bb6dbb493e8e4cdb8dac44664cd5e3aac2c35696cd97820",
+    "spec_path": "/Users/haido/herdr-delivery-benchmark-runs/herdr/docs/superpowers/specs/2026-07-28-dataset-promotion-benchmark-design.md",
+    "spec_sha256": "0ce159ba648e2e18bd4dcbf3001d9a3d4ea7e7fdb84210ba5f305c0c310040e6",
+    "controlled_clarification": "Per-metric canary thresholds are inclusive. A score equal to its minimum passes. This clarification supersedes only the quality lane generation."
+  },
+  "acceptance_command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "deployment_verification_command": [
+    "python3",
+    "-m",
+    "dataset_promotion.cli",
+    "verify-deployment",
+    "deployments/canary-2026-07-28"
+  ],
+  "deep_immutability_command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "tests.test_canary_integration.CanaryIntegrationTests.test_policy_constructor_deep_freezes_nested_inputs",
+    "-v"
+  ],
+  "source_artifacts": [
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/herdr/docs/superpowers/plans/2026-07-28-dataset-promotion-benchmark.md",
+      "sha256": "c84d179b49fa32e97bb6dbb493e8e4cdb8dac44664cd5e3aac2c35696cd97820"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/herdr/docs/superpowers/specs/2026-07-28-dataset-promotion-benchmark-design.md",
+      "sha256": "0ce159ba648e2e18bd4dcbf3001d9a3d4ea7e7fdb84210ba5f305c0c310040e6"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/herdr-iter3/tests/test_canary_integration.py",
+      "sha256": "40c30f0458ebc5b2a381fa5262b3308baa7f136fe199cf4c1ba54db33571b810"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/final-herdr-cf3abac/dataset_promotion/cli.py",
+      "sha256": "cf1b1d995e38b82c3c3361486c51dc0a469a89eec31b01f0c2e8bd95c17a5357"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/final-herdr-cf3abac/dataset_promotion/deployment.py",
+      "sha256": "c2970c9b8ea70c2b94d80d8fa1ccc096d4cbaa649c85182e530931edf29ffa15"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/final-herdr-cf3abac/dataset_promotion/promotion.py",
+      "sha256": "1a23ce9cc893887716359967cd0bfce9e9470adce5d524271b0b2c222d633579"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/final-herdr-cf3abac/fixtures/candidate.json",
+      "sha256": "c21a2ff2596a993ca83661157c749cbb45e9e6abf6f9468d5458bf4f917c5a07"
+    },
+    {
+      "path": "/Users/haido/herdr-delivery-benchmark-runs/final-herdr-cf3abac/tests/test_integration.py",
+      "sha256": "73b6033c57f4d17259aeeab5118da5937b9c71ace3c16bd31831e4fa91c48818"
+    }
+  ]
+}
