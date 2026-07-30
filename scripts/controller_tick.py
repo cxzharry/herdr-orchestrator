@@ -163,6 +163,9 @@ def _emit_stall_actions(state: dict[str, Any], now: int | float) -> list[dict[st
             if target:
                 actions.append(_reassign_lane(state, lane_id, lane, target, started))
                 continue
+        if lane.get("redirected_at") is not None:
+            continue
+        lane["redirected_at"] = now
         actions.append(
             {
                 "kind": "REDIRECT",
@@ -193,6 +196,8 @@ def _reassign_lane(
 ) -> dict[str, Any]:
     generation = int(lane.get("generation", 1)) + 1
     reassigned_id = f"{lane_id}-reassigned-g{generation}"
+    source_slot = lane.get("slot")
+    target = state.get("slots", {}).get(target_slot, {})
     lane["state"] = "SUPERSEDED"
     new_lane = copy.deepcopy(lane)
     new_lane.update(
@@ -201,16 +206,25 @@ def _reassign_lane(
             "generation": generation,
             "state": "ACTIVE",
             "slot": target_slot,
+            "agent_name": target.get("role_name"),
+            "session_id": target.get("session_id"),
+            "pane_id": target.get("pane_id"),
+            "workspace_id": target.get("workspace_id"),
             "active_timer_started_at": timer_started_at,
             "supersedes": lane_id,
         }
     )
+    new_lane.pop("redirected_at", None)
     state.setdefault("lanes", {})[reassigned_id] = new_lane
+    if source_slot in state.get("slots", {}):
+        state["slots"][source_slot]["status"] = "IDLE"
+        state["slots"][source_slot].pop("lane_id", None)
+        state["slots"][source_slot].pop("generation", None)
     state.get("slots", {}).get(target_slot, {})["status"] = "BUSY"
     return {
         "kind": "REASSIGN",
         "lane_id": lane_id,
-        "from_slot": lane.get("slot"),
+        "from_slot": source_slot,
         "to_slot": target_slot,
         "generation": generation,
         "timer_started_at": timer_started_at,

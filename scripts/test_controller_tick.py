@@ -19,6 +19,9 @@ def active_lane(lane_id, slot, started_at=0, progress_at=None):
         "generation": 1,
         "state": "ACTIVE",
         "slot": slot,
+        "agent_name": f"p{slot[1:].lower()}_impl",
+        "session_id": f"{slot.lower()}-session",
+        "pane_id": f"w6:p{slot[1:]}",
         "owned_scope": [f"{lane_id}/**"],
         "started_at": started_at,
         "active_timer_started_at": started_at,
@@ -134,10 +137,47 @@ class ControllerTickTests(unittest.TestCase):
         )
         self.assertEqual(0, result["state"]["lanes"]["stalled"]["active_timer_started_at"])
 
-    def test_stall_reassigns_to_idle_compatible_slot_and_prevents_duplicate_writes(self):
-        state = state_with_free_slots("P2")
+    def test_stall_redirect_is_not_repeated_before_reassign_deadline(self):
+        state = state_with_free_slots()
         state["lanes"] = {
             "stalled": active_lane("stalled", "P4", started_at=0),
+        }
+
+        first = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=60
+        )
+        second = controller_tick(
+            first["state"], requests=[], events=[], live_agents=[], now=61
+        )
+
+        self.assertEqual("REDIRECT", first["actions"][0]["kind"])
+        self.assertEqual("MONITOR", second["actions"][0]["kind"])
+        self.assertEqual(0, second["state"]["lanes"]["stalled"]["active_timer_started_at"])
+
+    def test_stall_reassigns_to_idle_compatible_slot_and_prevents_duplicate_writes(self):
+        state = state_with_free_slots("P2")
+        state["slots"]["P2"].update(
+            {
+                "pane_id": "w6:p2",
+                "workspace_id": "w6",
+                "role_name": "p2_impl",
+            }
+        )
+        state["slots"]["P4"].update(
+            {
+                "status": "BUSY",
+                "session_id": "p4-session",
+                "pane_id": "w6:p4",
+                "workspace_id": "w6",
+            }
+        )
+        state["lanes"] = {
+            "stalled": {
+                **active_lane("stalled", "P4", started_at=0),
+                "agent_name": "p4_impl",
+                "session_id": "p4-session",
+                "pane_id": "w6:p4",
+            },
         }
 
         result = controller_tick(
@@ -151,8 +191,13 @@ class ControllerTickTests(unittest.TestCase):
         self.assertEqual(0, result["actions"][0]["timer_started_at"])
         self.assertTrue(result["actions"][0]["ownership_transfer"]["duplicate_writes_prevented"])
         self.assertEqual("SUPERSEDED", result["state"]["lanes"]["stalled"]["state"])
-        self.assertEqual("ACTIVE", result["state"]["lanes"]["stalled-reassigned-g2"]["state"])
-        self.assertEqual(0, result["state"]["lanes"]["stalled-reassigned-g2"]["active_timer_started_at"])
+        replacement = result["state"]["lanes"]["stalled-reassigned-g2"]
+        self.assertEqual("ACTIVE", replacement["state"])
+        self.assertEqual("p2_impl", replacement["agent_name"])
+        self.assertEqual("p2-session", replacement["session_id"])
+        self.assertEqual("w6:p2", replacement["pane_id"])
+        self.assertEqual(0, replacement["active_timer_started_at"])
+        self.assertEqual("IDLE", result["state"]["slots"]["P4"]["status"])
 
     def test_nonterminal_reducer_return_is_not_assistant_final(self):
         result = controller_tick(
