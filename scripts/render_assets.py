@@ -84,10 +84,13 @@ def render(output: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    action = parser.add_mutually_exclusive_group(required=True)
+    action = parser.add_mutually_exclusive_group()
     action.add_argument("--write", type=Path)
     action.add_argument("--check", type=Path)
     args = parser.parse_args()
+
+    if not args.write and not args.check:
+        args.write = ASSET_DIR / "delivery-flow.png"
 
     if args.write:
         render(args.write.resolve())

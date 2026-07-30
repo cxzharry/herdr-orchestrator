@@ -1,0 +1,15 @@
+{
+  "schema_version": "herdr-frozen-superpowers/v1",
+  "rebaseline_policy": "explicit-user-request-only",
+  "compact": {
+    "seconds": 152,
+    "source": "benchmarks/2026-07-28-compact-runtime.json",
+    "source_sha256": "6acc1d0437b51b362a818f58f17c90eca8f9ff632dcbbd754d4b1060adc0549b"
+  },
+  "multi_module": {
+    "seconds": 1009,
+    "source": "benchmarks/2026-07-28-multi-module.json",
+    "source_sha256": "880ee46ec808c985bd544510409137e88a930e72d297f2a36b1721c4e5c39f88",
+    "required_quality": ["shared_acceptance", "deep_immutability"]
+  }
+}

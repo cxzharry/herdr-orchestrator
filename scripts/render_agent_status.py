@@ -1,47 +1,30 @@
 #!/usr/bin/env python3
-"""Render live Herdr P1-P9 agent status for P1 observability."""
+"""Render fixed Herdr role and current task from workspace state."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-from typing import Any
-
-try:
-    from scripts.agent_naming import slot_from_agent_name
-except ModuleNotFoundError:
-    from agent_naming import slot_from_agent_name
+from pathlib import Path
 
 
-def render_agent_status(agents: list[dict[str, Any]]) -> str:
+def render_agent_status(state: dict) -> list[str]:
     rows = []
-    for agent in agents:
-        name = agent.get("name")
-        slot = slot_from_agent_name(name)
-        if not slot:
-            continue
-        rows.append((int(slot[1:]), slot, name, agent.get("agent_status", "")))
-    rows.sort(key=lambda row: (row[0], row[2]))
-    return "\n".join(f"{slot} {name} {status}" for _, slot, name, status in rows)
-
-
-def list_live_agents() -> list[dict[str, Any]]:
-    result = subprocess.run(
-        ["herdr", "agent", "list"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    stream = result.stdout.strip() or result.stderr.strip()
-    if result.returncode:
-        raise RuntimeError(stream)
-    return json.loads(stream)["result"]["agents"]
+    for slot in sorted(state["slots"]):
+        value = state["slots"][slot]
+        task = value.get("task_summary") or "-"
+        rows.append(
+            f"{slot} | {value['role_name']} | {value['status']} | {task}"
+        )
+    return rows
 
 
 def main() -> int:
-    argparse.ArgumentParser(description=__doc__).parse_args()
-    print(render_agent_status(list_live_agents()))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("state", type=Path)
+    args = parser.parse_args()
+    state = json.loads(args.state.read_text(encoding="utf-8"))
+    print("\n".join(render_agent_status(state)))
     return 0
 
 

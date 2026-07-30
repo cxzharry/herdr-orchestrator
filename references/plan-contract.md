@@ -1,56 +1,21 @@
-# Herdr plan contract
+# Plan Contract
 
-Use this contract while writing a plan whose selected execution backend is
-Herdr, and validate it again after the user approves the plan.
+Herdr Orchestrator starts only from an approved spec and approved execution
+plan. Missing, stale, contradictory, or unapproved inputs are blockers.
 
-## Logical delivery topology
+The plan must define logical lanes with:
 
-Add a `## Herdr Delivery Contract` section to the plan. It must lock:
+- `contract_id`
+- `lane_id`
+- `generation`
+- owned paths
+- prerequisites
+- acceptance checks
+- terminal receipt command
 
-- approved spec path and digest, repository root, base SHA, and plan acceptance;
-- logical `lane_id`, role, owned paths, prerequisites, dependency wave,
-  acceptance, and terminal checks for every implementation lane;
-- eligible role slots: implementation lanes use P2-P4; P5 owns integration and
-  deployment; P6 owns integration review; P7-P9 are explicitly applicable or
-  not applicable with a reason;
-- deployment topology, blocking severity, review matrices, and required
-  evidence.
+Runtime identity is recorded after approval in `workspace-state.json`; the plan
+does not depend on live pane IDs. Valid receipt identity is contract, lane,
+generation, session, input identity, and output artifact.
 
-The plan describes logical capacity, not live runtime identity. `display_slug`
-is approved logical metadata for a readable live name. Never record an
-`agent_name`, `pane_id`, `session_id`, or `lease_id` in the approved plan.
-Also forbid `expected_agent_name`, `dispatch_agent_name`, and
-`controller_scope`. Those values can change after reuse, reset, move, close, or
-recovery.
-
-Use this minimal shape:
-
-```yaml
-herdr_delivery:
-  backend: herdr
-  lanes:
-    - lane_id: frontend
-      role: implementation
-      display_role: impl
-      display_slug: checkout
-      eligible_slots: [P2, P3, P4]
-      owned_paths: [app/**, components/**]
-      prerequisites: []
-      acceptance: [npm test, npm run build]
-  reviews:
-    P5: {applicable: true, role: integration-owner}
-    P6: {applicable: true, role: integration-reviewer}
-    P7: {applicable: false, reason: no functional matrix}
-    P8: {applicable: true, reason: UI scope}
-    P9: {applicable: false, reason: no persona matrix}
-  deployment:
-    topology: no-deployment-target
-    verification: isolated-local-runtime
-```
-
-## Approval and runtime binding
-
-The plan is not executable until the user approves it. After approval, bind
-each logical lane to a compatible live agent, pane, and session in
-`control-state.json`. A plan change invalidates its prior approval; a runtime
-identity change does not change the plan.
+Implementation lanes use P2-P4. P5 integrates. P6 reviews. P7-P9 are explicitly
+applicable or not applicable.

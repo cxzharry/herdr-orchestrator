@@ -9,15 +9,11 @@ REQUIRED_FIELDS = {
     "contract_id",
     "lane_id",
     "generation",
-    "role",
-    "agent_name",
-    "pane_id",
     "session_id",
     "status",
     "input_identity",
-    "output_identity",
-    "covered_acceptance",
-    "checks",
+    "output_artifact",
+    "verification",
     "finding_or_blocker",
     "resume_condition",
 }
@@ -28,6 +24,17 @@ REVIEWER_ROLES = {
     "designer",
     "persona",
 }
+
+
+def receipt_identity(receipt: dict) -> dict:
+    return {
+        "contract_id": receipt["contract_id"],
+        "lane_id": receipt["lane_id"],
+        "generation": receipt["generation"],
+        "session_id": receipt["session_id"],
+        "input_identity": receipt["input_identity"],
+        "output_artifact": receipt["output_artifact"],
+    }
 
 
 def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
@@ -41,7 +48,8 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
         failures.append("unsupported schema_version")
     if receipt["status"] not in VALID_STATUSES:
         failures.append("status must be PASS, FINDING, or BLOCKED")
-    if receipt["contract_id"] != control_state.get("contract_id"):
+    state_contract = control_state.get("contract_id") or control_state.get("run", {}).get("contract_id")
+    if receipt["contract_id"] != state_contract:
         failures.append("contract_id does not match control state")
 
     lane = control_state.get("lanes", {}).get(receipt["lane_id"])
@@ -51,17 +59,12 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
 
     expected_fields = {
         "generation": "generation does not match current lane",
-        "role": "role does not match current lane",
-        "pane_id": "pane_id does not match current lane",
         "session_id": "session_id does not match current lane",
         "input_identity": "input_identity does not match current lane",
     }
     for field, message in expected_fields.items():
         if receipt[field] != lane.get(field):
             failures.append(message)
-    dispatch_name = lane.get("dispatch_agent_name", lane.get("agent_name"))
-    if receipt["agent_name"] != dispatch_name:
-        failures.append("agent_name does not match dispatch identity")
     optional_identity_fields = {
         "root": "root does not match current lane",
         "base_sha": "base_sha does not match current lane",
@@ -75,12 +78,15 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
     if receipt["status"] == "PASS":
         if receipt["finding_or_blocker"] is not None:
             failures.append("PASS cannot contain a finding or blocker")
-        if not receipt["covered_acceptance"]:
-            failures.append("PASS requires covered_acceptance")
-        if not receipt["checks"]:
-            failures.append("PASS requires checks")
-        if not receipt["output_identity"]:
-            failures.append("PASS requires output_identity")
+        verification = receipt["verification"]
+        if (
+            not isinstance(verification, dict)
+            or not verification.get("covered_acceptance")
+            or not verification.get("checks")
+        ):
+            failures.append("PASS requires verification")
+        if not receipt["output_artifact"]:
+            failures.append("PASS requires output_artifact")
 
     if receipt["status"] == "FINDING":
         finding = receipt["finding_or_blocker"]
@@ -104,11 +110,9 @@ def validate_receipt(receipt: dict, control_state: dict) -> list[str]:
         if not receipt["resume_condition"]:
             failures.append("BLOCKED requires resume_condition")
 
-    if receipt["role"] in REVIEWER_ROLES:
-        if receipt["output_identity"] != receipt["input_identity"]:
-            failures.append(
-                "reviewer output_identity must equal input_identity"
-            )
+    if lane.get("role") in REVIEWER_ROLES:
+        if receipt["output_artifact"] != receipt["input_identity"]:
+            failures.append("reviewer output_artifact must equal input_identity")
 
     return failures
 

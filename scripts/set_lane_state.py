@@ -8,9 +8,9 @@ import json
 from pathlib import Path
 
 try:
-    from scripts.scheduler_state import SchedulerStateError, set_lane as set_scheduler_lane
+    from scripts.workspace_state import StateError, transition_lane
 except ModuleNotFoundError:
-    from scheduler_state import SchedulerStateError, set_lane as set_scheduler_lane
+    from workspace_state import StateError, transition_lane
 
 
 class StateUpdateError(RuntimeError):
@@ -26,15 +26,15 @@ def set_lane(
     input_updates: dict[str, str],
 ) -> dict:
     try:
-        return set_scheduler_lane(
+        return transition_lane(
             state_path,
             lane_id,
             generation,
             state_value,
-            receipt_path,
-            input_updates,
+            receipt_path=receipt_path,
+            input_updates=input_updates,
         )
-    except SchedulerStateError as error:
+    except StateError as error:
         raise StateUpdateError(str(error)) from error
 
 

@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,28 +33,26 @@ def write_receipt(
     lane = state.get("lanes", {}).get(lane_id)
     if lane is None:
         raise ReceiptWriteError(f"unknown lane: {lane_id}")
-    if output_identity is None and lane["role"] in REVIEWER_ROLES:
+    if output_identity is None and lane.get("role") in REVIEWER_ROLES:
         output_identity = lane["input_identity"]
 
     value = {
         "schema_version": "herdr-lane-receipt/v1",
-        "contract_id": state["contract_id"],
+        "contract_id": lane.get("contract_id") or state.get("run", {}).get("contract_id"),
         "lane_id": lane_id,
         "generation": lane["generation"],
-        "role": lane["role"],
-        "agent_name": lane.get("dispatch_agent_name", lane["agent_name"]),
-        "pane_id": lane["pane_id"],
         "session_id": lane["session_id"],
         "status": status,
-        "root": state.get("root"),
         "completed_at_utc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z"),
         "input_identity": lane["input_identity"],
-        "output_identity": output_identity or {},
-        "covered_acceptance": covered_acceptance,
-        "checks": checks,
+        "output_artifact": output_identity or {},
+        "verification": {
+            "covered_acceptance": covered_acceptance,
+            "checks": checks,
+        },
         "finding_or_blocker": finding_or_blocker,
         "resume_condition": resume_condition,
     }
@@ -65,18 +61,12 @@ def write_receipt(
         raise ReceiptWriteError("; ".join(failures))
 
     receipt_path = Path(lane["receipt_path"])
+    if receipt_path.exists():
+        raise ReceiptWriteError(f"receipt already exists: {receipt_path}")
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{receipt_path.name}.", dir=receipt_path.parent, text=True
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(value, handle, indent=2)
-            handle.write("\n")
-        os.replace(temporary, receipt_path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    with receipt_path.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(value, indent=2))
+        handle.write("\n")
     return value
 
 

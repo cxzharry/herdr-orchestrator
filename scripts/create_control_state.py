@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""Create a normalized Standard-gate control state from one lane manifest."""
+"""Create a Herdr workspace ledger from one lane manifest."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import tempfile
 from pathlib import Path
 
 try:
-    from scripts.scheduler_state import SchedulerStateError, normalize_lane
+    from scripts.workspace_state import StateError, create_state as create_workspace_state
 except ModuleNotFoundError:
-    from scheduler_state import SchedulerStateError, normalize_lane
+    from workspace_state import StateError, create_state as create_workspace_state
 
 
 class StateCreationError(RuntimeError):
@@ -22,7 +20,6 @@ class StateCreationError(RuntimeError):
 RUN_FIELDS = {
     "schema_version",
     "contract_id",
-    "controller_scope",
     "root",
     "base_sha",
     "approved_input_sha256",
@@ -41,8 +38,6 @@ LANE_FIELDS = {
 
 
 def create_state(manifest_path: Path, state_path: Path) -> dict:
-    if state_path.exists():
-        raise StateCreationError(f"control state already exists: {state_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     missing = RUN_FIELDS - set(manifest)
     if missing:
@@ -54,8 +49,7 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
     if not isinstance(manifest["lanes"], list) or not manifest["lanes"]:
         raise StateCreationError("manifest lanes must be a non-empty list")
 
-    run_dir = state_path.parent
-    lanes = {}
+    lanes = []
     for source in manifest["lanes"]:
         lane_missing = LANE_FIELDS - set(source)
         if lane_missing:
@@ -63,48 +57,30 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
                 "lane missing fields: " + ", ".join(sorted(lane_missing))
             )
         lane_id = source["lane_id"]
-        if lane_id in lanes:
+        if any(item["lane_id"] == lane_id for item in lanes):
             raise StateCreationError(f"duplicate lane: {lane_id}")
-        try:
-            lane = normalize_lane(manifest, lane_id, source, run_dir)
-        except SchedulerStateError as error:
-            raise StateCreationError(str(error)) from error
-        if lane.get("controller_scope") != manifest["controller_scope"]:
-            raise StateCreationError("lane leased to a different controller scope")
-        lanes[lane_id] = lane
+        lanes.append(dict(source))
 
-    value = {
-        "schema_version": "herdr-control-state/v2",
+    run = {
         "contract_id": manifest["contract_id"],
-        "controller_scope": manifest["controller_scope"],
         "root": manifest["root"],
         "base_sha": manifest["base_sha"],
         "approved_input_sha256": manifest["approved_input_sha256"],
-        "revision": 0,
-        "controller": manifest.get("controller", {}),
-        "requests": {},
-        "request_order": [],
-        "event_cursor": 0,
-        "watcher": manifest.get("watcher", {}),
-        "lanes": lanes,
+        "run_dir": str(state_path.parent),
     }
-    if "gate_matrix" in manifest:
-        value["gate_matrix"] = manifest["gate_matrix"]
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "receipts").mkdir(exist_ok=True)
-    (run_dir / "evidence").mkdir(exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{state_path.name}.", dir=run_dir, text=True
-    )
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    (state_path.parent / "receipts").mkdir(exist_ok=True)
+    (state_path.parent / "evidence").mkdir(exist_ok=True)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(value, handle, indent=2)
-            handle.write("\n")
-        os.replace(temporary, state_path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    return value
+        return create_workspace_state(
+            state_path,
+            manifest.get("workspace_id", "workspace"),
+            controller=manifest.get("controller", {}),
+            run=run,
+            lanes=lanes,
+        )
+    except StateError as error:
+        raise StateCreationError(str(error)) from error
 
 
 def main() -> int:
@@ -114,7 +90,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         value = create_state(args.manifest, args.control_state)
-    except (OSError, ValueError, SchedulerStateError, StateCreationError) as error:
+    except (OSError, ValueError, StateCreationError) as error:
         print(json.dumps({"status": "error", "error": str(error)}))
         return 1
     print(
