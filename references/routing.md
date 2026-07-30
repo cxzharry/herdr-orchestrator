@@ -33,6 +33,13 @@ disjoint dispatch actions, and places blocked work into the ownership queue or
 capacity queue. A reducer return is internal. P1 responds finally only after
 terminal delivery or a real user blocker.
 
+After contract validation, dispatch independent briefs concurrently with no
+long planning prose. In Standard, prewarm P5/P6 while P2-P4 work. The reducer
+may review completed lane diffs while siblings run. If an active lane
+has no observable progress, redirect at 60s without observable progress and
+reassign at 120s without resetting the timer. Reassignment carries explicit
+ownership transfer and must prevent duplicate writes during reassignment.
+
 Watcher wake proof controls `YIELD` versus bounded `MONITOR`. Without
 `watcher.wake_verified_at`, P1 keeps monitoring.
 

@@ -58,6 +58,17 @@ class P1BoundaryTests(unittest.TestCase):
         ]:
             self.assertIn(marker, self.corpus)
 
+    def test_dispatch_stall_rules_are_enforceable(self):
+        for marker in [
+            "dispatch independent briefs concurrently",
+            "prewarm P5/P6 while P2-P4 work",
+            "redirect at 60s without observable progress",
+            "reassign at 120s without resetting the timer",
+            "review completed lane diffs while siblings run",
+            "prevent duplicate writes during reassignment",
+        ]:
+            self.assertIn(marker, self.corpus)
+
     def test_graph_shows_required_flow(self):
         for marker in [
             "Approved plan",

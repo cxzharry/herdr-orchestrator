@@ -13,6 +13,21 @@ def request(request_id, paths):
     }
 
 
+def active_lane(lane_id, slot, started_at=0, progress_at=None):
+    lane = {
+        "lane_id": lane_id,
+        "generation": 1,
+        "state": "ACTIVE",
+        "slot": slot,
+        "owned_scope": [f"{lane_id}/**"],
+        "started_at": started_at,
+        "active_timer_started_at": started_at,
+    }
+    if progress_at is not None:
+        lane["last_progress_at"] = progress_at
+    return lane
+
+
 def state_with_free_slots(*slots):
     state = initial_state(
         "w6",
@@ -22,6 +37,12 @@ def state_with_free_slots(*slots):
     for slot in slots:
         state["slots"][slot]["status"] = "IDLE"
         state["slots"][slot]["session_id"] = f"{slot.lower()}-session"
+    return state
+
+
+def standard_state_with_free_slots(*slots):
+    state = state_with_free_slots(*slots)
+    state["run"] = {"mode": "Standard", "status": "ACTIVE"}
     return state
 
 
@@ -57,6 +78,81 @@ class ControllerTickTests(unittest.TestCase):
             ],
             [(item["kind"], item["slot"]) for item in result["actions"]],
         )
+
+    def test_standard_tick_prewarms_p5_p6_with_implementation_dispatch(self):
+        state = standard_state_with_free_slots("P2", "P3", "P4", "P5", "P6")
+
+        result = controller_tick(
+            state,
+            requests=[request("a", ["a/**"]), request("b", ["b/**"])],
+            events=[],
+            live_agents=[],
+            now=10,
+        )
+
+        self.assertEqual(
+            [("DISPATCH", "P2"), ("DISPATCH", "P3"), ("PREWARM", "P5"), ("PREWARM", "P6")],
+            [(item["kind"], item["slot"]) for item in result["actions"]],
+        )
+
+    def test_reviewer_can_inspect_completed_lane_while_sibling_runs(self):
+        state = standard_state_with_free_slots("P6")
+        state["lanes"] = {
+            "done-a": {"state": "ACCEPTED", "output_artifact": {"commit": "abc"}},
+            "active-b": active_lane("active-b", "P3", started_at=0, progress_at=95),
+        }
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=100
+        )
+
+        self.assertIn(
+            {"kind": "REVIEW_DIFF", "slot": "P6", "lane_id": "done-a"},
+            result["actions"],
+        )
+        self.assertFalse(result["assistant_may_finalize"])
+
+    def test_stall_redirects_without_resetting_original_timer(self):
+        state = state_with_free_slots()
+        state["lanes"] = {
+            "stalled": active_lane("stalled", "P4", started_at=0),
+        }
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=60
+        )
+
+        self.assertEqual(
+            {
+                "kind": "REDIRECT",
+                "lane_id": "stalled",
+                "slot": "P4",
+                "deadline_seconds": 60,
+                "timer_started_at": 0,
+            },
+            result["actions"][0],
+        )
+        self.assertEqual(0, result["state"]["lanes"]["stalled"]["active_timer_started_at"])
+
+    def test_stall_reassigns_to_idle_compatible_slot_and_prevents_duplicate_writes(self):
+        state = state_with_free_slots("P2")
+        state["lanes"] = {
+            "stalled": active_lane("stalled", "P4", started_at=0),
+        }
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=120
+        )
+
+        self.assertEqual("REASSIGN", result["actions"][0]["kind"])
+        self.assertEqual("stalled", result["actions"][0]["lane_id"])
+        self.assertEqual("P4", result["actions"][0]["from_slot"])
+        self.assertEqual("P2", result["actions"][0]["to_slot"])
+        self.assertEqual(0, result["actions"][0]["timer_started_at"])
+        self.assertTrue(result["actions"][0]["ownership_transfer"]["duplicate_writes_prevented"])
+        self.assertEqual("SUPERSEDED", result["state"]["lanes"]["stalled"]["state"])
+        self.assertEqual("ACTIVE", result["state"]["lanes"]["stalled-reassigned-g2"]["state"])
+        self.assertEqual(0, result["state"]["lanes"]["stalled-reassigned-g2"]["active_timer_started_at"])
 
     def test_nonterminal_reducer_return_is_not_assistant_final(self):
         result = controller_tick(

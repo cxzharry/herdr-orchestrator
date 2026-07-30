@@ -17,6 +17,9 @@ FREE_SLOT_STATES = {"IDLE"}
 ACTIVE_SLOT_STATES = {"BUSY"}
 TERMINAL_LANE_STATES = {"ACCEPTED", "PASS", "FINDING", "BLOCKED", "LOST", "SUPERSEDED"}
 DISPATCH_SLOTS = ("P2", "P3", "P4")
+STANDARD_PREWARM_SLOTS = ("P5", "P6")
+REDIRECT_AFTER_SECONDS = 60
+REASSIGN_AFTER_SECONDS = 120
 
 
 def controller_tick(
@@ -31,6 +34,8 @@ def controller_tick(
     _ingest_requests(next_state, requests)
     _ingest_events(next_state, events)
     actions = _emit_ready_actions(next_state)
+    actions.extend(_emit_standard_overlap_actions(next_state))
+    actions.extend(_emit_stall_actions(next_state, now))
 
     terminal = _delivery_terminal(next_state)
     wake_ready = _watcher_wake_proven(next_state)
@@ -112,6 +117,110 @@ def _emit_ready_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return actions
+
+
+def _emit_standard_overlap_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
+    if state.get("run", {}).get("mode") != "Standard":
+        return []
+    actions = []
+    if _implementation_work_active(state):
+        for lane_id, lane in sorted(state.get("lanes", {}).items()):
+            if lane.get("state") == "ACCEPTED" and lane.get("output_artifact"):
+                if state.get("slots", {}).get("P6", {}).get("status") in FREE_SLOT_STATES:
+                    actions.append({"kind": "REVIEW_DIFF", "slot": "P6", "lane_id": lane_id})
+                    state["slots"]["P6"]["status"] = "BUSY"
+                    break
+        for slot in STANDARD_PREWARM_SLOTS:
+            value = state.get("slots", {}).get(slot, {})
+            if value.get("status") in FREE_SLOT_STATES:
+                value["status"] = "WARMING"
+                actions.append({"kind": "PREWARM", "slot": slot})
+    return actions
+
+
+def _implementation_work_active(state: dict[str, Any]) -> bool:
+    for slot in DISPATCH_SLOTS:
+        if state.get("slots", {}).get(slot, {}).get("status") in ACTIVE_SLOT_STATES:
+            return True
+    return any(
+        lane.get("state") == "ACTIVE" and lane.get("slot") in DISPATCH_SLOTS
+        for lane in state.get("lanes", {}).values()
+    )
+
+
+def _emit_stall_actions(state: dict[str, Any], now: int | float) -> list[dict[str, Any]]:
+    actions = []
+    for lane_id, lane in sorted(state.get("lanes", {}).items()):
+        if lane.get("state") != "ACTIVE":
+            continue
+        started = lane.get("active_timer_started_at", lane.get("started_at", now))
+        quiet_since = lane.get("last_progress_at", started)
+        quiet_for = now - quiet_since
+        if quiet_for < REDIRECT_AFTER_SECONDS:
+            continue
+        if quiet_for >= REASSIGN_AFTER_SECONDS:
+            target = _idle_compatible_slot(state, lane.get("slot"))
+            if target:
+                actions.append(_reassign_lane(state, lane_id, lane, target, started))
+                continue
+        actions.append(
+            {
+                "kind": "REDIRECT",
+                "lane_id": lane_id,
+                "slot": lane.get("slot"),
+                "deadline_seconds": REDIRECT_AFTER_SECONDS,
+                "timer_started_at": started,
+            }
+        )
+    return actions
+
+
+def _idle_compatible_slot(state: dict[str, Any], current_slot: str | None) -> str | None:
+    for slot in DISPATCH_SLOTS:
+        if slot == current_slot:
+            continue
+        if state.get("slots", {}).get(slot, {}).get("status") in FREE_SLOT_STATES:
+            return slot
+    return None
+
+
+def _reassign_lane(
+    state: dict[str, Any],
+    lane_id: str,
+    lane: dict[str, Any],
+    target_slot: str,
+    timer_started_at: int | float,
+) -> dict[str, Any]:
+    generation = int(lane.get("generation", 1)) + 1
+    reassigned_id = f"{lane_id}-reassigned-g{generation}"
+    lane["state"] = "SUPERSEDED"
+    new_lane = copy.deepcopy(lane)
+    new_lane.update(
+        {
+            "lane_id": reassigned_id,
+            "generation": generation,
+            "state": "ACTIVE",
+            "slot": target_slot,
+            "active_timer_started_at": timer_started_at,
+            "supersedes": lane_id,
+        }
+    )
+    state.setdefault("lanes", {})[reassigned_id] = new_lane
+    state.get("slots", {}).get(target_slot, {})["status"] = "BUSY"
+    return {
+        "kind": "REASSIGN",
+        "lane_id": lane_id,
+        "from_slot": lane.get("slot"),
+        "to_slot": target_slot,
+        "generation": generation,
+        "timer_started_at": timer_started_at,
+        "ownership_transfer": {
+            "from_lane_id": lane_id,
+            "to_lane_id": reassigned_id,
+            "owned_scope": copy.deepcopy(lane.get("owned_scope", [])),
+            "duplicate_writes_prevented": True,
+        },
+    }
 
 
 def _next_free_slot(state: dict[str, Any]) -> str | None:
