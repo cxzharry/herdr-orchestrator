@@ -20,13 +20,16 @@
   "acceptance_command": [
     "python3",
     "-B",
-    "-m",
-    "unittest",
-    "discover",
-    "-s",
-    "tests",
-    "-v"
+    "benchmarks/harness/acceptance_canary.py",
+    "--root",
+    "{candidate_root}"
   ],
+  "acceptance_harness": {
+    "repo_path": "benchmarks/harness/acceptance_canary.py",
+    "sha256": "284dcff080c2189fb0fe099f95ae9b2927159d2fee9333470e7d2998d102e710",
+    "source_path": "/Users/haido/.codex/backups/herdr-orchestrator-skill-backups/herdr-orchestrator.backup.20260729-161647/plans/meta-harness-worker-reuse-20260728/benchmarks/acceptance_canary.py",
+    "source_sha256": "284dcff080c2189fb0fe099f95ae9b2927159d2fee9333470e7d2998d102e710"
+  },
   "deployment_verification_command": [
     "python3",
     "-m",

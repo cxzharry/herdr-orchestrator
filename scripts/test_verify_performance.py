@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,7 +25,8 @@ def multi_module_identity():
     return {
         "base_sha": "405cf96fd675c607768dafec8ede1aeae5725359",
         "acceptance_command": [
-            "python3", "-B", "-m", "unittest", "discover", "-s", "tests", "-v",
+            "python3", "-B", "benchmarks/harness/acceptance_canary.py",
+            "--root", "{candidate_root}",
         ],
         "deep_immutability_command": [
             "python3", "-B", "-m", "unittest",
@@ -35,8 +37,24 @@ def multi_module_identity():
     }
 
 
-COMPACT_MANIFEST_SHA256 = "03ac319ef4b73602fda26c4a7cb02bc46eacfb61d002305b38cdad396c3c7708"
-MULTI_MODULE_MANIFEST_SHA256 = "5de918d0db65c327e471317cc6ec796429d6fad8e3c03693775a5765cdb99667"
+ACCEPTANCE_CANARY_SHA256 = "284dcff080c2189fb0fe099f95ae9b2927159d2fee9333470e7d2998d102e710"
+ACCEPTANCE_CANARY_SOURCE = (
+    "/Users/haido/.codex/backups/herdr-orchestrator-skill-backups/"
+    "herdr-orchestrator.backup.20260729-161647/plans/"
+    "meta-harness-worker-reuse-20260728/benchmarks/acceptance_canary.py"
+)
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def manifest_sha256(scenario_id: str) -> str:
+    return file_sha256(Path("benchmarks/scenarios") / f"{scenario_id}.json")
+
+
+COMPACT_MANIFEST_SHA256 = manifest_sha256("compact-control-plane-v1")
+MULTI_MODULE_MANIFEST_SHA256 = manifest_sha256("multi-module-canary-v1")
 
 
 class PerformanceTest(unittest.TestCase):
@@ -279,6 +297,31 @@ class PerformanceTest(unittest.TestCase):
             self.assertTrue(value["task_input"])
             self.assertTrue(value["acceptance_command"])
             self.assertTrue(value["source_artifacts"])
+
+    def test_bundled_acceptance_harness_matches_recovered_source(self):
+        harness = Path("benchmarks/harness/acceptance_canary.py")
+        self.assertEqual(ACCEPTANCE_CANARY_SHA256, file_sha256(harness))
+
+        manifest = json.loads(
+            Path("benchmarks/scenarios/multi-module-canary-v1.json")
+            .read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            [
+                "python3", "-B", "benchmarks/harness/acceptance_canary.py",
+                "--root", "{candidate_root}",
+            ],
+            manifest["acceptance_command"],
+        )
+        self.assertEqual(
+            {
+                "repo_path": "benchmarks/harness/acceptance_canary.py",
+                "sha256": ACCEPTANCE_CANARY_SHA256,
+                "source_path": ACCEPTANCE_CANARY_SOURCE,
+                "source_sha256": ACCEPTANCE_CANARY_SHA256,
+            },
+            manifest["acceptance_harness"],
+        )
 
     def test_rejects_verification_only_candidate_identity(self):
         baseline = {
