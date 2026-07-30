@@ -1,0 +1,185 @@
+{
+  "schema_version": "herdr-performance-candidate/v1",
+  "candidate_sha": "688c7a3d6b95b46a4870e9154c047e7bc8a86ecf",
+  "integration_sha": "688c7a3d6b95b46a4870e9154c047e7bc8a86ecf",
+  "baseline_sha256": "35cd49358231e12d435be11d1b1200472ba27a76784530346a9bf743994cf12b",
+  "named_herdr_session": "performance_candidate_iteration2-g1",
+  "run_root": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1",
+  "raw_receipt": {
+    "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/performance_candidate_iteration2-g1.json",
+    "sha256": "70187974570a873f5b0dfd85291ecc0e5f6ac140fa5976785eb10a6b83b7402d"
+  },
+  "setup": {
+    "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/setup.json",
+    "sha256": "72678bb8eaebdcd739099598f9f9dfd390c4644f194f855f308f98176bbd37fa",
+    "created_at_utc": "2026-07-30T06:26:09Z",
+    "baselines": {
+      "compact_seconds": 152,
+      "multi_module_seconds": 1009
+    }
+  },
+  "candidate_skill": {
+    "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/candidate-skill",
+    "source_sha": "688c7a3d6b95b46a4870e9154c047e7bc8a86ecf",
+    "manifest_sha256": "ca892f7138c48d20c4c5b3dd2c5a36a074d542d88455a7ce9c5e93e67ce23935"
+  },
+  "scenarios": {
+    "compact": {
+      "scenario_id": "compact-control-plane-v1",
+      "manifest_sha256": "03ac319ef4b73602fda26c4a7cb02bc46eacfb61d002305b38cdad396c3c7708",
+      "seconds": 143,
+      "verified": true,
+      "scope_clean": true,
+      "scenario_identity": {
+        "base_sha": "9f5ece92b836d240a95463949e503b0dab366631",
+        "acceptance_command": [
+          "python3",
+          "verify.py"
+        ]
+      },
+      "rework_loops": 0,
+      "quality": {
+        "status": "PASS",
+        "baseline_ceiling_seconds": 152,
+        "strict_gate": {
+          "acceptance_exit_zero": true,
+          "scope_clean": true,
+          "elapsed_integer_lt_baseline_ceiling": true
+        }
+      },
+      "timing": {
+        "start_utc": "2026-07-30T06:34:26Z",
+        "stop_utc": "2026-07-30T06:36:50.039587Z",
+        "elapsed_seconds": 143
+      },
+      "acceptance": {
+        "command": [
+          "python3",
+          "verify.py"
+        ],
+        "exit_code": 0,
+        "output": "fixture verified"
+      },
+      "raw_evidence": [
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/compact_benchmark.json",
+          "sha256": "a323cdda9dd740f3fc941156fbdf7c21c699a930226c63873171b28c91666a60",
+          "schema_version": "herdr-compact-benchmark/v1"
+        },
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/transcripts/p1-compact-finalread.txt",
+          "sha256": "270bf3802e229c548ea1267a71623a6b1a62fbc89b8d66c2c794d76c5adc6911"
+        }
+      ]
+    },
+    "multi_module": {
+      "scenario_id": "multi-module-canary-v1",
+      "manifest_sha256": "b99fbff1245032692635c9ebae96902a342d33f3052e3828ff380d001f4c587c",
+      "seconds": 776,
+      "verified": true,
+      "scope_clean": true,
+      "deep_immutability": true,
+      "scenario_identity": {
+        "base_sha": "405cf96fd675c607768dafec8ede1aeae5725359",
+        "acceptance_command": [
+          "python3",
+          "-B",
+          "benchmarks/harness/acceptance_canary.py",
+          "--root",
+          "{candidate_root}"
+        ],
+        "deep_immutability_command": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "tests.test_canary_integration.CanaryIntegrationTests.test_policy_constructor_deep_freezes_nested_inputs",
+          "-v"
+        ]
+      },
+      "rework_loops": 5,
+      "quality": {
+        "status": "PASS",
+        "baseline_ceiling_seconds": 1009,
+        "manifest_digest": "f367452bff69558dd50239e49421663d647e50a83052791569aca3e9419426e3",
+        "strict_gate": {
+          "deep_immutability_exit_zero": true,
+          "deployment_verification_exit_zero": true,
+          "elapsed_integer_lt_baseline_ceiling": true,
+          "integration_unmodified": true,
+          "shared_acceptance_exit_zero": true,
+          "standard_evidence": true
+        }
+      },
+      "timing": {
+        "start_utc": "2026-07-30T06:39:57Z",
+        "stop_utc": "2026-07-30T06:53:36Z",
+        "elapsed_seconds": 776
+      },
+      "acceptance": {
+        "command": [
+          "python3",
+          "-B",
+          "benchmarks/harness/acceptance_canary.py",
+          "--root",
+          "{candidate_root}"
+        ],
+        "exit_code": 0,
+        "manifest_digest": "f367452bff69558dd50239e49421663d647e50a83052791569aca3e9419426e3",
+        "quality_generation": 2,
+        "release_id": "canary-2026-07-28",
+        "status": "pass"
+      },
+      "deep_immutability_result": {
+        "command": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "tests.test_canary_integration.CanaryIntegrationTests.test_policy_constructor_deep_freezes_nested_inputs",
+          "-v"
+        ],
+        "exit_code": 0,
+        "output_contains": "OK"
+      },
+      "deployment": {
+        "exit_code": 0,
+        "manifest_digest": "f367452bff69558dd50239e49421663d647e50a83052791569aca3e9419426e3",
+        "source_identity": "integration-source",
+        "status": "deployed"
+      },
+      "final_qc": {
+        "result": "FINAL_REVIEW_PASS",
+        "exit_codes": [
+          0
+        ]
+      },
+      "rework": [
+        "Initial P1 multi dispatch used --timeout without --wait; corrected without timer reset.",
+        "P5/P6 Codex trust prompts cleared by P7 operator; no candidate file mutation; timer not reset.",
+        "P6 preliminary review finding routed to P5; P5 integrated compatibility fix and passed exact gates.",
+        "P1 wait loop interrupted after visible P5 gate pass; timer stop remained gate/outer-observation based.",
+        "P6 final review stalled/no-output after redirects; read-only final QC reassigned to p7_qc w1:p7 session 019fb1d8-0d95-7bd1-bd34-f7becf8bc384; timer not reset."
+      ],
+      "raw_evidence": [
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/multi_benchmark.json",
+          "sha256": "ff2c3feda2f1b667ad2eba1e9cc8efd026a3ac6c880170e0ca9477a867308c94",
+          "schema_version": "herdr-multi-benchmark/v1"
+        },
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/transcripts/p5-final-gates-read.txt",
+          "sha256": "bab50dbf59a35b805bd1cb73e7aca7d53c4c16ba16f817a12602fe18a7b099fa"
+        },
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/transcripts/p7-qc-final-read.txt",
+          "sha256": "7ae52f0752fbfba1a763ad6da53293e0e75e67b9b2b85373980b29d70220619e"
+        },
+        {
+          "path": "/Users/haido/herdr-orchestrator-benchmark-runs/performance_candidate_iteration2-g1/performance/session/p7-multi-rework.jsonl",
+          "sha256": "8e7ad372a43a85b4044ce6c47785f1ca3f360ba75e0dce9c46218bf077d0b2ee"
+        }
+      ]
+    }
+  }
+}
