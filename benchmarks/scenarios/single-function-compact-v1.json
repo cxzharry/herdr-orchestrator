@@ -1,0 +1,51 @@
+{
+  "schema_version": "herdr-benchmark-scenario/v1",
+  "scenario_id": "single-function-compact-v1",
+  "description": "Implement one deterministic public helper through one-lane Compact, P5 integration, and P6 independent QC.",
+  "mode": "Compact",
+  "fixture": {
+    "definition": "public-helper-v1",
+    "base_sha": "112352852569fb848d1f92d4022f463c62cda496",
+    "sha256": "77cf11f4c5c29ba0317b84ec55c836d2672870e0eeee756c180b52dd7015beac",
+    "files": [
+      {
+        "path": "public_helper.py",
+        "sha256": "c9fbf1b0f4fe54633a306c1e029cb3f200f3345680734ca5b03c44276243ba4f"
+      },
+      {
+        "path": "verify.py",
+        "sha256": "18c3dc16f336a3b6d1ad5e9a4608454a6cf5bfee49e0851c5c9fbf35572bacd2"
+      }
+    ]
+  },
+  "isolation_copy_procedure": [
+    "materialize the locked fixture in a new isolated worktree",
+    "verify fixture and file digests before dispatch",
+    "run cold and warm candidates from separate clean copies at the same base"
+  ],
+  "task_input": {
+    "summary": "Implement public_helper so it deterministically returns the square of an integer.",
+    "owned_paths": [
+      "public_helper.py"
+    ],
+    "implementation_lanes": 1,
+    "required_gates": [
+      "P5 integration",
+      "P6 independent QC"
+    ]
+  },
+  "acceptance_command": [
+    "python3",
+    "-B",
+    "verify.py"
+  ],
+  "timing": {
+    "start": "when the approved task is submitted to P1",
+    "stop": "when P6 PASS binds the exact P5 integrated candidate"
+  },
+  "runs": [
+    "cold",
+    "warm"
+  ],
+  "mutate_baseline": false
+}

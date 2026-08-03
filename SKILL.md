@@ -25,14 +25,16 @@ python3 -B scripts/controller_tick.py
 ```
 
 After contract validation, P1 must dispatch independent briefs concurrently
-with no planning prose. Standard prewarms P5/P6 while P2-P4 work. Redirect at
+with no planning prose. Compact and Standard prewarm P5/P6 while P2-P4 work. Redirect at
 60s without observable progress; reassign at 120s without resetting the timer.
 Review completed lane diffs while siblings run. Prevent duplicate writes during
 reassignment.
 
-Compact applies only to approved low-risk work with disjoint P2-P4 paths,
-deterministic checks, no browser/auth/schema/security/deploy scope, and no
-required independent review. Otherwise use Standard.
+Compact applies only to approved low-risk work with one to three path-owned lanes,
+deterministic checks, and no browser/auth/schema/security/deploy scope. A single
+function or single file is first-class Compact work. P5 integration and P6
+independent QC are mandatory. Otherwise use Standard; run all applicable P7,
+P8, and P9 lanes concurrently against the same immutable candidate.
 
 ## Fixed Roles
 

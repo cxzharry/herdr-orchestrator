@@ -1,9 +1,10 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.manage_worker_pool import WorkerPool, start_command
+from scripts.manage_worker_pool import HerdrClient, WorkerPool, start_command
 from scripts.workspace_state import create_state, load_state, mutate_state, register_lane
 
 
@@ -31,6 +32,7 @@ class FakeClient:
         self.agents = []
         self.started = []
         self.replacement_slots = []
+        self.allocations = []
         self.forbidden = []
 
     def list_agents(self):
@@ -39,6 +41,10 @@ class FakeClient:
     def start_agent(self, command, slot):
         self.started.append(command)
         self.replacement_slots.append(slot)
+
+    def allocate_pane(self, workspace_id, anchor_pane_id, cwd):
+        self.allocations.append((workspace_id, anchor_pane_id, str(cwd)))
+        return f"{workspace_id}:p9"
 
     def run(self, command):
         if command[:2] == ["pane", "close"]:
@@ -62,10 +68,12 @@ class WorkerPoolTests(unittest.TestCase):
         create_state(
             self.path,
             "w6",
+            controller={"role_name": "p1_orchestrator", "pane_id": "w6:p1"},
             run={
                 "contract_id": "contract-a",
                 "controller_session_id": "controller-session",
                 "run_dir": self.tempdir.name,
+                "root": self.tempdir.name,
             },
         )
         self.client = FakeClient()
@@ -151,13 +159,17 @@ class WorkerPoolTests(unittest.TestCase):
     def assert_no_forbidden_pane_mutation(self):
         self.assertEqual([], self.client.forbidden)
 
-    def test_cold_start_uses_fixed_name_yolo_model_and_effort(self):
+    def test_cold_start_allocates_local_no_focus_pane_and_uses_current_cli(self):
         self.pool.ensure(["P2"])
 
         self.assertEqual(
+            [("w6", "w6:p1", self.tempdir.name)],
+            self.client.allocations,
+        )
+        self.assertEqual(
             [
-                "herdr", "agent", "start", "--name", "p2_impl",
-                "--", "codex", "--yolo", "-m", "gpt-5.5",
+                "herdr", "agent", "start", "p2_impl", "--kind", "codex",
+                "--pane", "w6:p9", "--", "--yolo", "-m", "gpt-5.5",
                 "-c", "model_reasoning_effort=high",
             ],
             self.client.started[0],
@@ -165,14 +177,57 @@ class WorkerPoolTests(unittest.TestCase):
         self.assert_no_forbidden_pane_mutation()
 
     def test_start_command_uses_native_yolo_for_implementation_slots(self):
+        try:
+            command = start_command("P3", "w6", set(), "w6:p9")
+        except TypeError as error:
+            self.fail(f"start_command lacks the explicit pane boundary: {error}")
         self.assertEqual(
             [
-                "herdr", "agent", "start", "--name", "p3_impl",
-                "--", "codex", "--yolo", "-m", "gpt-5.5",
+                "herdr", "agent", "start", "p3_impl", "--kind", "codex",
+                "--pane", "w6:p9", "--", "--yolo", "-m", "gpt-5.5",
                 "-c", "model_reasoning_effort=high",
             ],
-            start_command("P3", "w6", set()),
+            command,
         )
+
+    def test_installed_herdr_help_requires_name_kind_and_existing_pane(self):
+        result = subprocess.run(
+            ["herdr", "agent", "start", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        help_text = result.stdout + result.stderr
+        self.assertIn("herdr agent start <NAME> --kind <KIND> --pane <ID>", help_text)
+
+    def test_live_adapter_splits_from_local_anchor_without_focus(self):
+        calls = []
+        client = HerdrClient()
+
+        def run(args):
+            calls.append(args)
+            return {
+                "result": {
+                    "pane": {"pane_id": "w6:p9", "workspace_id": "w6"}
+                }
+            }
+
+        client._run = run
+        try:
+            pane_id = client.allocate_pane("w6", "w6:p1", Path("/run/root"))
+        except AttributeError as error:
+            self.fail(f"live adapter lacks local pane allocation: {error}")
+
+        self.assertEqual("w6:p9", pane_id)
+        self.assertEqual(
+            [[
+                "pane", "split", "--pane", "w6:p1", "--direction", "right",
+                "--cwd", "/run/root", "--no-focus",
+            ]],
+            calls,
+        )
+        self.assertFalse(any("close" in command or "move" in command for command in calls))
 
     def test_cold_worker_binds_session_only_after_first_prompt(self):
         self.pool.ensure(["P2"])

@@ -1,4 +1,5 @@
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,9 @@ from scripts.controller_tick import controller_tick
 from scripts.manage_worker_pool import WorkerPool
 from scripts.run_watcher import run_once
 from scripts.workspace_state import create_state, load_state, mutate_state, register_lane
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def live(slot, session_id=None, *, pane=None, workspace="w6", status="done"):
@@ -38,12 +42,17 @@ class ScenarioHerdr:
         self.prompts = []
         self.signals = []
         self.closed = []
+        self.allocations = []
 
     def list_agents(self):
         return copy.deepcopy(self.agents)
 
     def start_agent(self, command, *_):
         self.started.append(command)
+
+    def allocate_pane(self, workspace_id, anchor_pane_id, cwd):
+        self.allocations.append((workspace_id, anchor_pane_id, str(cwd)))
+        return f"{workspace_id}:p-new"
 
     def prompt_agent(self, target, capsule):
         self.prompts.append((target, capsule))
@@ -64,8 +73,13 @@ class WorkflowScenarioTests(unittest.TestCase):
             self.path,
             "w6",
             controller={"role_name": "p1_orchestrator",
+                        "pane_id": "w6:p1",
                         "session_id": "controller-session"},
-            run={"contract_id": "contract-a", "run_dir": self.tempdir.name},
+            run={
+                "contract_id": "contract-a",
+                "run_dir": self.tempdir.name,
+                "root": self.tempdir.name,
+            },
         )
         self.adapter = ScenarioHerdr("w6")
 
@@ -104,7 +118,7 @@ class WorkflowScenarioTests(unittest.TestCase):
 
     def test_cold_p2_p4_first_prompt_then_session_bind(self):
         self.pool().ensure(["P2", "P3", "P4"])
-        self.assertEqual(["p2_impl", "p3_impl", "p4_impl"], [cmd[4] for cmd in self.adapter.started])
+        self.assertEqual(["p2_impl", "p3_impl", "p4_impl"], [cmd[3] for cmd in self.adapter.started])
         self.assertIsNone(load_state(self.path)["slots"]["P2"]["session_id"])
 
         self.adapter.agents = [
@@ -119,6 +133,39 @@ class WorkflowScenarioTests(unittest.TestCase):
         self.assertEqual("session-3", state["slots"]["P3"]["session_id"])
         self.assertEqual("session-4", state["slots"]["P4"]["session_id"])
         self.assertEqual([], self.adapter.closed)
+
+    def test_public_helper_compact_uses_one_path_owned_lane_plus_p5_and_p6(self):
+        corpus = " ".join(
+            (ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "SKILL.md",
+                "references/routing.md",
+                "references/plan-contract.md",
+                "references/review-deploy.md",
+            )
+        )
+        normalized = " ".join(corpus.split())
+
+        self.assertIn("one to three path-owned lanes", normalized)
+        self.assertIn("P5 integration and P6 independent QC are mandatory", normalized)
+        self.assertIn("single function or single file", normalized)
+
+    def test_single_function_scenario_is_locked_and_baseline_safe(self):
+        scenario_path = ROOT / "benchmarks/scenarios/single-function-compact-v1.json"
+        self.assertTrue(scenario_path.is_file(), scenario_path)
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+
+        self.assertEqual("herdr-benchmark-scenario/v1", scenario["schema_version"])
+        self.assertEqual("single-function-compact-v1", scenario["scenario_id"])
+        self.assertEqual("Compact", scenario["mode"])
+        self.assertEqual(["public_helper.py"], scenario["task_input"]["owned_paths"])
+        self.assertEqual(["python3", "-B", "verify.py"], scenario["acceptance_command"])
+        self.assertRegex(scenario["fixture"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(scenario["fixture"]["base_sha"], r"^[0-9a-f]{40}$")
+        self.assertTrue(scenario["timing"]["start"])
+        self.assertTrue(scenario["timing"]["stop"])
+        self.assertFalse(scenario["mutate_baseline"])
+        self.assertEqual(["cold", "warm"], scenario["runs"])
 
     def test_disjoint_request_dispatches_while_workers_busy(self):
         controller = {
@@ -180,7 +227,7 @@ class WorkflowScenarioTests(unittest.TestCase):
         self.assertEqual("SUPERSEDED", state["lanes"]["lane-p2"]["state"])
         self.assertEqual("ACTIVE", state["lanes"]["lane-p3"]["state"])
         self.assertEqual("ACTIVE", state["lanes"]["lane-p4"]["state"])
-        self.assertEqual(["p2_impl"], [cmd[4] for cmd in self.adapter.started])
+        self.assertEqual(["p2_impl"], [cmd[3] for cmd in self.adapter.started])
         self.assertEqual([], self.adapter.closed)
 
     def test_foreign_workspace_agent_is_never_adopted(self):

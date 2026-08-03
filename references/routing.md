@@ -14,14 +14,17 @@ not identity.
 
 ## Worker Pool
 
-Cold worker names are set by `herdr agent start --name <fixed-role> -- codex
---yolo`. P2-P4 use `p2_impl`, `p3_impl`, and `p4_impl`. The first prompt creates
-a Codex session, and the next reconcile binds that session into the ledger.
+Cold workers split from an explicit controller pane in the current workspace,
+use the run root as cwd, and pass `--no-focus`. They start with `herdr agent
+start <fixed-role> --kind codex --pane <id> -- --yolo`. P2-P4 use `p2_impl`,
+`p3_impl`, and `p4_impl`. The first prompt creates a Codex session, and the next
+reconcile binds that session into the ledger.
 
 A same-session move inside the same workspace updates only pane evidence and
-preserves lane generation. A foreign workspace session is never adopted. After
-three misses, recovery supersedes only the affected lane generation and starts
-only that fixed slot. Runtime recovery must never close user panes.
+preserves lane generation. The runtime never issues pane move or close. A
+foreign workspace session is never adopted. After three misses, recovery
+supersedes only the affected lane generation and starts only that fixed slot.
+Recovery must never close user panes.
 
 Task text is rendered by `render_agent_status.py` beside the fixed role name.
 It is never encoded into agent names.
@@ -34,7 +37,7 @@ capacity queue. A reducer return is internal. P1 responds finally only after
 terminal delivery or a real user blocker.
 
 After contract validation, dispatch independent briefs concurrently with no
-long planning prose. In Standard, prewarm P5/P6 while P2-P4 work. The reducer
+long planning prose. In both modes, prewarm P5/P6 while P2-P4 work. The reducer
 may review completed lane diffs while siblings run. If an active lane
 has no observable progress, redirect at 60s without observable progress and
 reassign at 120s without resetting the timer. Reassignment carries explicit
@@ -45,7 +48,9 @@ Watcher wake proof controls `YIELD` versus bounded `MONITOR`. Without
 
 ## Compact
 
-Compact may read only state, pool, receipt, and deterministic verifier detail:
+Compact uses one to three path-owned lanes; a single function or single file is
+first-class. P5 integration and P6 independent QC are mandatory. Compact may
+read only state, pool, receipt, and deterministic verifier detail:
 
 - `workspace-state.json`
 - `scripts/manage_worker_pool.py`
@@ -55,7 +60,9 @@ Compact may read only state, pool, receipt, and deterministic verifier detail:
 - `scripts/verify_assets.py`
 - `scripts/verify_complexity.py`
 
-Standard-only recovery matrices and P5-P9 gates live outside the Compact path.
+Standard-only recovery matrices and P7-P9 gates live outside the Compact path.
+Standard starts applicable P7, P8, and P9 lanes concurrently against one
+immutable candidate.
 
 ## Lane Brief
 

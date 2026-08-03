@@ -39,6 +39,7 @@ FIXED_ROLES = (
     "p8_design",
     "p9_persona",
 )
+SINGLE_FUNCTION_SCENARIO = "benchmarks/scenarios/single-function-compact-v1.json"
 
 
 def verify() -> dict:
@@ -67,6 +68,9 @@ def verify() -> dict:
         "A reducer return is internal",
         "Compact applies only",
         "Otherwise use Standard",
+        "one to three path-owned lanes",
+        "P5 integration and P6 independent QC are mandatory",
+        "applicable P7, P8, and P9 lanes concurrently",
         "workspace-state.json",
     ):
         if marker not in corpus:
@@ -99,6 +103,22 @@ def verify() -> dict:
     for marker in readme_required:
         if marker not in readme:
             failures.append(f"README missing marker: {marker}")
+
+    scenario_path = ROOT / SINGLE_FUNCTION_SCENARIO
+    if not scenario_path.is_file():
+        failures.append(f"missing scenario: {SINGLE_FUNCTION_SCENARIO}")
+    else:
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+        if scenario.get("mode") != "Compact":
+            failures.append("single-function scenario must use Compact")
+        if scenario.get("mutate_baseline") is not False:
+            failures.append("single-function scenario must not mutate baseline")
+        if not scenario.get("fixture", {}).get("sha256"):
+            failures.append("single-function scenario must lock fixture sha256")
+        if not scenario.get("timing", {}).get("start") or not scenario.get(
+            "timing", {}
+        ).get("stop"):
+            failures.append("single-function scenario must define timing bounds")
 
     return {
         "status": "pass" if not failures else "fail",

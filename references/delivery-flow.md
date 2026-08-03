@@ -9,8 +9,9 @@ Approved plan
        -> P2/P3/P4 fixed warm implementation slots
        -> ownership queue / capacity queue
   -> immutable receipts
-  -> Compact verifier OR Standard P5 integration
-  -> P6 review -> conditional P7/P8/P9
+  -> P5 integration
+  -> P6 independent QC
+  -> Standard only: applicable P7/P8/P9 concurrently
   -> P5 install/push/deploy
 
 Herdr live state -> workspace watcher -> event queue -> P1 wake

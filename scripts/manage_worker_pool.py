@@ -22,13 +22,20 @@ class PoolError(RuntimeError):
     pass
 
 
-def start_command(slot: str, workspace_id: str, occupied: set[str]) -> list[str]:
+def start_command(
+    slot: str,
+    workspace_id: str,
+    occupied: set[str],
+    pane_id: str,
+) -> list[str]:
+    if not pane_id.startswith(f"{workspace_id}:"):
+        raise PoolError("worker pane must belong to the current workspace")
     name = fixed_role_name(slot, workspace_id, occupied)
     model = "gpt-5.6-sol" if slot == "P1" else "gpt-5.5"
     effort = "xhigh" if slot == "P1" else "high"
     return [
-        "herdr", "agent", "start", "--name", name,
-        "--", "codex", "--yolo", "-m", model,
+        "herdr", "agent", "start", name, "--kind", "codex",
+        "--pane", pane_id, "--", "--yolo", "-m", model,
         "-c", f"model_reasoning_effort={effort}",
     ]
 
@@ -97,15 +104,34 @@ class WorkerPool:
 
     def _start(self, slot: str, occupied: set[str] | None = None) -> None:
         occupied = occupied or set()
-        command = start_command(slot, self.workspace_id, occupied)
-        role_name = command[4]
+        state = _load_without_mutating(self.state_path)
+        anchor_pane_id = state.get("controller", {}).get("pane_id")
+        run_root = state.get("run", {}).get("root")
+        if not anchor_pane_id or not anchor_pane_id.startswith(
+            f"{self.workspace_id}:"
+        ):
+            raise PoolError("controller pane must belong to the current workspace")
+        if not run_root:
+            raise PoolError("run root is required for worker pane allocation")
+        pane_id = self.client.allocate_pane(
+            self.workspace_id,
+            anchor_pane_id,
+            Path(run_root),
+        )
+        command = start_command(
+            slot,
+            self.workspace_id,
+            occupied,
+            pane_id,
+        )
+        role_name = command[3]
 
         def mark_starting(value: dict) -> None:
             value["slots"][slot].update(
                 {
                     "role_name": role_name,
                     "session_id": None,
-                    "pane_id": None,
+                    "pane_id": pane_id,
                     "workspace_id": self.workspace_id,
                     "terminal_id": None,
                     "status": "STARTING",
@@ -289,6 +315,22 @@ class HerdrClient:
     def start_agent(self, command: list[str], slot: str) -> None:
         del slot
         self._run(command[1:])
+
+    def allocate_pane(
+        self,
+        workspace_id: str,
+        anchor_pane_id: str,
+        cwd: Path,
+    ) -> str:
+        payload = self._run([
+            "pane", "split", "--pane", anchor_pane_id,
+            "--direction", "right", "--cwd", str(cwd), "--no-focus",
+        ])
+        pane = payload.get("result", {}).get("pane", {})
+        pane_id = pane.get("pane_id")
+        if pane.get("workspace_id") != workspace_id or not pane_id:
+            raise PoolError("Herdr allocated a pane outside the current workspace")
+        return pane_id
 
     @staticmethod
     def _run(args: list[str]) -> dict:

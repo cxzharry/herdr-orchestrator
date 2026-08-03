@@ -13,7 +13,9 @@ runs bounded reducer ticks, and routes evidence.
 
 - `workspace-state.json` is the only mutable runtime ledger.
 - `scripts/herdr_identity.py` is the only nested Herdr identity extractor.
-- P2-P4 start as fixed warm implementation slots with native `codex --yolo`.
+- P2-P4 allocate panes from the current workspace with the run root and
+  `--no-focus`, then start as fixed warm slots with
+  `herdr agent start NAME --kind codex --pane ID -- --yolo`.
 - The first prompt creates a worker session; the next reconcile binds it.
 - A same-session move inside the same workspace updates pane evidence only.
 - A foreign workspace session is never adopted.
@@ -38,13 +40,14 @@ runs bounded reducer ticks, and routes evidence.
 
 ## Compact And Standard
 
-Compact is for approved low-risk local work with disjoint P2-P4 paths and
-deterministic checks. Compact stops after the local verifier and does not load
-Standard recovery or review detail.
+Compact is for approved low-risk local work with one to three path-owned lanes
+and deterministic checks. A single function or single file is first-class
+Compact work. P5 integration and P6 independent QC are mandatory.
 
 Standard is for integration, UI/browser, auth/RBAC, schema, security,
 destructive, production, or independently reviewed work. P5 integrates accepted
-worker outputs; P6 reviews; P7-P9 run only when their predicates apply.
+worker outputs; P6 reviews; applicable P7, P8, and P9 lanes run concurrently
+against the same immutable candidate.
 
 The Superpowers baselines are frozen reference values. After each skill
 change, only the Herdr candidate is rerun and stored under its Git SHA.

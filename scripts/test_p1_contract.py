@@ -69,6 +69,16 @@ class P1BoundaryTests(unittest.TestCase):
         ]:
             self.assertIn(marker, self.corpus)
 
+    def test_fast_path_keeps_integration_and_independent_qc(self):
+        for marker in [
+            "one to three path-owned lanes",
+            "P5 integration and P6 independent QC are mandatory",
+            "single function or single file",
+            "applicable P7, P8, and P9 lanes concurrently",
+        ]:
+            self.assertIn(marker, self.corpus)
+        self.assertNotIn("disjoint P2-P4 paths", self.corpus)
+
     def test_graph_shows_required_flow(self):
         for marker in [
             "Approved plan",
