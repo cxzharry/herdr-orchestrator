@@ -53,6 +53,7 @@ def ready_qc_lane(lane_id, slot):
     return {
         "lane_id": lane_id,
         "state": "READY",
+        "input_identity": {"candidate_commit": "candidate-abc"},
         "agent_name": {
             "P7": "p7_qc",
             "P8": "p8_design",
@@ -204,6 +205,27 @@ class ControllerTickTests(unittest.TestCase):
 
         self.assertEqual("MONITOR", result["actions"][0]["kind"])
         self.assertEqual("READY", result["state"]["lanes"]["functional_qc"]["state"])
+
+    def test_standard_tick_keeps_stale_or_unbound_qc_lanes_ready(self):
+        for candidate in ("candidate-old", None):
+            with self.subTest(candidate=candidate):
+                state = standard_state_ready_for_qc(
+                    {"P7": True, "P8": False, "P9": False}
+                )
+                lane = state["lanes"]["functional_qc"]
+                if candidate is None:
+                    lane.pop("input_identity")
+                else:
+                    lane["input_identity"]["candidate_commit"] = candidate
+
+                result = controller_tick(
+                    state, requests=[], events=[], live_agents=[], now=10
+                )
+
+                self.assertEqual("MONITOR", result["actions"][0]["kind"])
+                self.assertEqual(
+                    "READY", result["state"]["lanes"]["functional_qc"]["state"]
+                )
 
     def test_reviewer_can_inspect_completed_lane_while_sibling_runs(self):
         state = standard_state_with_free_slots("P6")

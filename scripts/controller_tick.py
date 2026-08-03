@@ -161,7 +161,7 @@ def _emit_ready_qc_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
     for slot in QC_SLOTS:
         if not applicability.get(slot):
             continue
-        ready = _ready_lane_for_slot(state, slot)
+        ready = _ready_lane_for_slot(state, slot, candidate)
         if ready is None:
             continue
         lane_id, lane = ready
@@ -183,11 +183,13 @@ def _candidate_commit(identity: dict[str, Any]) -> Any:
 
 
 def _ready_lane_for_slot(
-    state: dict[str, Any], slot: str
+    state: dict[str, Any], slot: str, candidate: Any
 ) -> tuple[str, dict[str, Any]] | None:
     role_name = state.get("slots", {}).get(slot, {}).get("role_name")
     for lane_id, lane in sorted(state.get("lanes", {}).items()):
         if lane.get("state") != "READY":
+            continue
+        if _candidate_commit(lane.get("input_identity", {})) != candidate:
             continue
         if lane.get("slot") == slot or lane.get("agent_name") == role_name:
             return lane_id, lane
