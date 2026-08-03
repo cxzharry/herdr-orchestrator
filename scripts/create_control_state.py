@@ -8,8 +8,10 @@ import json
 from pathlib import Path
 
 try:
+    from scripts.delivery_mode import validate_mode
     from scripts.workspace_state import StateError, create_state as create_workspace_state
 except ModuleNotFoundError:
+    from delivery_mode import validate_mode
     from workspace_state import StateError, create_state as create_workspace_state
 
 
@@ -23,6 +25,9 @@ RUN_FIELDS = {
     "root",
     "base_sha",
     "approved_input_sha256",
+    "mode",
+    "risk",
+    "review_applicability",
     "lanes",
 }
 LANE_FIELDS = {
@@ -61,11 +66,24 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
             raise StateCreationError(f"duplicate lane: {lane_id}")
         lanes.append(dict(source))
 
+    try:
+        validate_mode(
+            manifest["mode"],
+            manifest["risk"],
+            manifest["review_applicability"],
+            sum(lane["role"] == "implementation" for lane in lanes),
+        )
+    except ValueError as error:
+        raise StateCreationError(str(error)) from error
+
     run = {
         "contract_id": manifest["contract_id"],
         "root": manifest["root"],
         "base_sha": manifest["base_sha"],
         "approved_input_sha256": manifest["approved_input_sha256"],
+        "mode": manifest["mode"],
+        "risk": dict(manifest["risk"]),
+        "review_applicability": dict(manifest["review_applicability"]),
         "run_dir": str(state_path.parent),
     }
     state_path.parent.mkdir(parents=True, exist_ok=True)
