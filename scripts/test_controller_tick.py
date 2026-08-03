@@ -49,6 +49,37 @@ def standard_state_with_free_slots(*slots):
     return state
 
 
+def ready_qc_lane(lane_id, slot):
+    return {
+        "lane_id": lane_id,
+        "state": "READY",
+        "agent_name": {
+            "P7": "p7_qc",
+            "P8": "p8_design",
+            "P9": "p9_persona",
+        }[slot],
+    }
+
+
+def standard_state_ready_for_qc(applicability):
+    state = standard_state_with_free_slots()
+    state["run"]["review_applicability"] = applicability
+    state["lanes"] = {
+        "integration": {
+            "state": "ACCEPTED",
+            "output_artifact": {"commit": "candidate-abc"},
+        },
+        "independent_review": {
+            "state": "PASS",
+            "input_identity": {"candidate_commit": "candidate-abc"},
+        },
+        "functional_qc": ready_qc_lane("functional_qc", "P7"),
+        "design_qc": ready_qc_lane("design_qc", "P8"),
+        "persona_qc": ready_qc_lane("persona_qc", "P9"),
+    }
+    return state
+
+
 def busy_state(heartbeat_at=None, wake_verified_at=None):
     state = state_with_free_slots("P2", "P3", "P4")
     for slot in ("P2", "P3", "P4"):
@@ -97,6 +128,82 @@ class ControllerTickTests(unittest.TestCase):
             [("DISPATCH", "P2"), ("DISPATCH", "P3"), ("PREWARM", "P5"), ("PREWARM", "P6")],
             [(item["kind"], item["slot"]) for item in result["actions"]],
         )
+
+    def test_first_active_implementation_tick_prewarms_p5_p6_for_both_modes(self):
+        for mode in ("Compact", "Standard"):
+            with self.subTest(mode=mode):
+                state = state_with_free_slots("P6")
+                state["run"] = {"mode": mode, "status": "ACTIVE"}
+                state["lanes"] = {
+                    "active": active_lane("active", "P3"),
+                }
+
+                result = controller_tick(
+                    state, requests=[], events=[], live_agents=[], now=10
+                )
+
+                self.assertEqual(
+                    [("PREWARM", "P5"), ("PREWARM", "P6")],
+                    [(item["kind"], item.get("slot")) for item in result["actions"]],
+                )
+                self.assertEqual("WARMING", result["state"]["slots"]["P5"]["status"])
+                self.assertEqual("WARMING", result["state"]["slots"]["P6"]["status"])
+
+    def test_standard_tick_dispatches_all_applicable_ready_qc_lanes(self):
+        state = standard_state_ready_for_qc(
+            {"P7": True, "P8": True, "P9": True}
+        )
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=10
+        )
+
+        self.assertEqual(
+            [
+                ("DISPATCH", "P7", "functional_qc"),
+                ("DISPATCH", "P8", "design_qc"),
+                ("DISPATCH", "P9", "persona_qc"),
+            ],
+            [
+                (item["kind"], item.get("slot"), item.get("lane_id"))
+                for item in result["actions"]
+            ],
+        )
+        self.assertEqual("ACTIVE", result["state"]["lanes"]["functional_qc"]["state"])
+        self.assertEqual("ACTIVE", result["state"]["lanes"]["design_qc"]["state"])
+        self.assertEqual("ACTIVE", result["state"]["lanes"]["persona_qc"]["state"])
+        self.assertEqual("READY", state["lanes"]["functional_qc"]["state"])
+
+    def test_standard_tick_skips_non_applicable_ready_qc_lanes(self):
+        state = standard_state_ready_for_qc(
+            {"P7": True, "P8": False, "P9": True}
+        )
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=10
+        )
+
+        self.assertEqual(
+            ["P7", "P9"],
+            [item.get("slot") for item in result["actions"]],
+        )
+        self.assertEqual("READY", result["state"]["lanes"]["design_qc"]["state"])
+
+    def test_standard_tick_waits_when_review_is_not_for_exact_integration(self):
+        state = standard_state_ready_for_qc(
+            {"P7": True, "P8": False, "P9": False}
+        )
+        state["lanes"]["integration"]["output_artifact"]["commit"] = "candidate-new"
+        state["lanes"]["independent_review"]["input_identity"]["candidate_commit"] = (
+            "candidate-old"
+        )
+
+        result = controller_tick(
+            state, requests=[], events=[], live_agents=[], now=10
+        )
+
+        self.assertEqual("MONITOR", result["actions"][0]["kind"])
+        self.assertEqual("READY", result["state"]["lanes"]["functional_qc"]["state"])
 
     def test_reviewer_can_inspect_completed_lane_while_sibling_runs(self):
         state = standard_state_with_free_slots("P6")

@@ -14,10 +14,12 @@ except ModuleNotFoundError:
 
 READY_REQUEST_STATES = {"READY"}
 FREE_SLOT_STATES = {"IDLE"}
+PREWARM_SLOT_STATES = {"COLD", "IDLE"}
 ACTIVE_SLOT_STATES = {"BUSY"}
 TERMINAL_LANE_STATES = {"ACCEPTED", "PASS", "FINDING", "BLOCKED", "LOST", "SUPERSEDED"}
 DISPATCH_SLOTS = ("P2", "P3", "P4")
-STANDARD_PREWARM_SLOTS = ("P5", "P6")
+PREWARM_SLOTS = ("P5", "P6")
+QC_SLOTS = ("P7", "P8", "P9")
 REDIRECT_AFTER_SECONDS = 60
 REASSIGN_AFTER_SECONDS = 120
 
@@ -34,7 +36,7 @@ def controller_tick(
     _ingest_requests(next_state, requests)
     _ingest_events(next_state, events)
     actions = _emit_ready_actions(next_state)
-    actions.extend(_emit_standard_overlap_actions(next_state))
+    actions.extend(_emit_overlap_actions(next_state))
     actions.extend(_emit_stall_actions(next_state, now))
 
     terminal = _delivery_terminal(next_state)
@@ -119,23 +121,77 @@ def _emit_ready_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
     return actions
 
 
-def _emit_standard_overlap_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
-    if state.get("run", {}).get("mode") != "Standard":
-        return []
+def _emit_overlap_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
     actions = []
-    if _implementation_work_active(state):
-        for lane_id, lane in sorted(state.get("lanes", {}).items()):
-            if lane.get("state") == "ACCEPTED" and lane.get("output_artifact"):
-                if state.get("slots", {}).get("P6", {}).get("status") in FREE_SLOT_STATES:
-                    actions.append({"kind": "REVIEW_DIFF", "slot": "P6", "lane_id": lane_id})
-                    state["slots"]["P6"]["status"] = "BUSY"
-                    break
-        for slot in STANDARD_PREWARM_SLOTS:
+    mode = state.get("run", {}).get("mode")
+    if mode in {"Compact", "Standard"} and _implementation_work_active(state):
+        if mode == "Standard":
+            for lane_id, lane in sorted(state.get("lanes", {}).items()):
+                if lane.get("state") == "ACCEPTED" and lane.get("output_artifact"):
+                    if state.get("slots", {}).get("P6", {}).get("status") in FREE_SLOT_STATES:
+                        actions.append({"kind": "REVIEW_DIFF", "slot": "P6", "lane_id": lane_id})
+                        state["slots"]["P6"]["status"] = "BUSY"
+                        break
+        for slot in PREWARM_SLOTS:
             value = state.get("slots", {}).get(slot, {})
-            if value.get("status") in FREE_SLOT_STATES:
+            if value.get("status") in PREWARM_SLOT_STATES:
                 value["status"] = "WARMING"
                 actions.append({"kind": "PREWARM", "slot": slot})
+    actions.extend(_emit_ready_qc_actions(state))
     return actions
+
+
+def _emit_ready_qc_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
+    if state.get("run", {}).get("mode") != "Standard":
+        return []
+    integration = state.get("lanes", {}).get("integration", {})
+    review = state.get("lanes", {}).get("independent_review", {})
+    candidate = _candidate_commit(integration.get("output_artifact", {}))
+    reviewed_candidate = _candidate_commit(review.get("input_identity", {}))
+    if (
+        integration.get("state") != "ACCEPTED"
+        or review.get("state") != "PASS"
+        or not candidate
+        or reviewed_candidate != candidate
+    ):
+        return []
+
+    actions = []
+    applicability = state.get("run", {}).get("review_applicability", {})
+    for slot in QC_SLOTS:
+        if not applicability.get(slot):
+            continue
+        ready = _ready_lane_for_slot(state, slot)
+        if ready is None:
+            continue
+        lane_id, lane = ready
+        lane["state"] = "ACTIVE"
+        state.get("slots", {}).get(slot, {})["status"] = "BUSY"
+        actions.append(
+            {
+                "kind": "DISPATCH",
+                "slot": slot,
+                "lane_id": lane_id,
+                "agent_name": lane.get("agent_name"),
+            }
+        )
+    return actions
+
+
+def _candidate_commit(identity: dict[str, Any]) -> Any:
+    return identity.get("candidate_commit") or identity.get("commit")
+
+
+def _ready_lane_for_slot(
+    state: dict[str, Any], slot: str
+) -> tuple[str, dict[str, Any]] | None:
+    role_name = state.get("slots", {}).get(slot, {}).get("role_name")
+    for lane_id, lane in sorted(state.get("lanes", {}).items()):
+        if lane.get("state") != "READY":
+            continue
+        if lane.get("slot") == slot or lane.get("agent_name") == role_name:
+            return lane_id, lane
+    return None
 
 
 def _implementation_work_active(state: dict[str, Any]) -> bool:
