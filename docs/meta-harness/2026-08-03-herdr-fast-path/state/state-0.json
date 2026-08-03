@@ -1,0 +1,46 @@
+{
+  "schema_version": "meta-harness-state/v1",
+  "iteration": 0,
+  "phase": "baseline",
+  "prior_scores": null,
+  "failure_class": "plan",
+  "targeted_criteria": [
+    "route_correctness",
+    "live_latency",
+    "stage_overlap",
+    "cli_recovery_compatibility"
+  ],
+  "hypothesis": "Real latency is caused by ambiguous mode routing, absent persisted mode, obsolete live agent-start syntax, and serialized post-integration gates rather than control-plane execution time.",
+  "what_not_to_retry": [
+    "Do not optimize the 0.15-second unit-test runtime.",
+    "Do not weaken P5 integration or P6 independent QC.",
+    "Do not rerun or modify the frozen Superpowers baseline.",
+    "Do not use fake-client tests as the only CLI compatibility evidence."
+  ],
+  "evidence": {
+    "unit_tests": {
+      "count": 85,
+      "seconds": 0.15,
+      "status": "PASS"
+    },
+    "active_session_selector_run": {
+      "elapsed_seconds": 4393,
+      "first_implementation_receipt_seconds": 647,
+      "last_implementation_receipt_seconds": 742,
+      "receipts": 15,
+      "reworked_lanes": [
+        "session_publisher_presence",
+        "presence_summary_selector",
+        "integration",
+        "independent_review",
+        "layout_qc"
+      ]
+    },
+    "contract_findings": [
+      "Compact text requires disjoint P2-P4 work and does not define a one-lane route.",
+      "create_control_state does not require or persist mode.",
+      "manage_worker_pool emits obsolete herdr agent start --name syntax.",
+      "Applicable P7-P9 receipts were produced serially in the observed run."
+    ]
+  }
+}

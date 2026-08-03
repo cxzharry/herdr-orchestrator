@@ -1,0 +1,36 @@
+{
+  "schema_version": "meta-harness-rubric/v1",
+  "intent": "IMPROVE",
+  "locked": true,
+  "target": 8.5,
+  "target_min": 7.0,
+  "max_iterations": 3,
+  "orchestration_mode": "Parallel agents",
+  "criteria": [
+    {
+      "id": "route_correctness",
+      "weight": 0.25,
+      "description": "One-function work deterministically selects Compact while every Standard trigger fails closed and all P1, workspace, integration, QC, receipt, and pane contracts remain intact."
+    },
+    {
+      "id": "live_latency",
+      "weight": 0.25,
+      "description": "Cold and warm live single-function canaries record complete phase timings, pass acceptance without rework, and minimize wall-clock delivery time."
+    },
+    {
+      "id": "stage_overlap",
+      "weight": 0.2,
+      "description": "P5/P6 prewarm begins with implementation and applicable Standard P7-P9 work is emitted concurrently against one immutable candidate."
+    },
+    {
+      "id": "cli_recovery_compatibility",
+      "weight": 0.15,
+      "description": "The current installed Herdr CLI start boundary, same-workspace identity, focus preservation, stale recovery, and no-close behavior pass fake and live checks."
+    },
+    {
+      "id": "quality_compatibility",
+      "weight": 0.15,
+      "description": "All focused and full checks pass; final Herdr Compact and multi-module candidates beat frozen 152s and 1009s quality gates without changing the baseline."
+    }
+  ]
+}
