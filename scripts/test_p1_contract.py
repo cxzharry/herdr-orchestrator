@@ -3,6 +3,8 @@ import re
 import unittest
 from pathlib import Path
 
+from scripts.verify_assets import REQUIRED_TEXT
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,7 +34,7 @@ class P1BoundaryTests(unittest.TestCase):
             "It never implements, tests, integrates, reviews, commits, pushes, or deploys",
             "P5 integrates accepted worker outputs",
             "P6 reviews",
-            "Compact verifier",
+            "P6 independent QC",
         ]
         for marker in required:
             self.assertIn(marker, self.corpus)
@@ -79,6 +81,17 @@ class P1BoundaryTests(unittest.TestCase):
             self.assertIn(marker, self.corpus)
         self.assertNotIn("disjoint P2-P4 paths", self.corpus)
 
+    def test_asset_validator_requires_current_delivery_contract(self):
+        required = " ".join(REQUIRED_TEXT)
+        for marker in [
+            "P5 integration (Compact + Standard)",
+            "P6 independent QC (Compact + Standard)",
+            "Standard only: applicable P7/P8/P9 concurrently",
+        ]:
+            self.assertIn(marker, required)
+        self.assertNotIn("Compact verifier", required)
+        self.assertNotIn("conditional P7/P8/P9", required)
+
     def test_graph_shows_required_flow(self):
         for marker in [
             "Approved plan",
@@ -86,13 +99,22 @@ class P1BoundaryTests(unittest.TestCase):
             "atomic controller tick",
             "P2/P3/P4 fixed warm implementation slots",
             "immutable receipts",
-            "Compact verifier OR Standard P5 integration",
-            "P6 review -> conditional P7/P8/P9",
+            "P5 integration (Compact + Standard)",
+            "P6 independent QC (Compact + Standard)",
+            "Standard only: applicable P7/P8/P9 concurrently",
             "P5 install/push/deploy",
             "Herdr live state -> workspace watcher -> event queue -> P1 wake",
             "never close user panes",
         ]:
             self.assertIn(marker, self.asset_text)
+
+        for obsolete in [
+            "Compact verifier",
+            "Compact PASS",
+            "no P5-P9",
+            "conditional P7/P8/P9",
+        ]:
+            self.assertNotIn(obsolete, self.asset_text)
 
         self.assertNotIn("foreign workspace adopted", self.asset_text)
 
