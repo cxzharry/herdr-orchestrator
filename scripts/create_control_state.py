@@ -40,6 +40,10 @@ LANE_FIELDS = {
     "input_identity",
     "owned_scope",
 }
+MANDATORY_LANE_ROLES = {
+    "integration": "P5 integration",
+    "integration-reviewer": "P6 independent-review",
+}
 
 
 def create_state(manifest_path: Path, state_path: Path) -> dict:
@@ -65,6 +69,14 @@ def create_state(manifest_path: Path, state_path: Path) -> dict:
         if any(item["lane_id"] == lane_id for item in lanes):
             raise StateCreationError(f"duplicate lane: {lane_id}")
         lanes.append(dict(source))
+
+    for role, label in MANDATORY_LANE_ROLES.items():
+        count = sum(lane["role"] == role for lane in lanes)
+        if count != 1:
+            raise StateCreationError(
+                f"manifest requires exactly one {label} lane "
+                f"(role={role}); found {count}"
+            )
 
     try:
         validate_mode(

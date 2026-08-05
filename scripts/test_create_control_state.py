@@ -1,3 +1,4 @@
+import copy
 import json
 import tempfile
 import unittest
@@ -43,6 +44,26 @@ class CreateControlStateTests(unittest.TestCase):
                             "session_id": "session-1",
                             "input_identity": {"base_sha": "abc"},
                             "owned_scope": ["quality.py"],
+                        },
+                        {
+                            "lane_id": "integration",
+                            "generation": 1,
+                            "role": "integration",
+                            "agent_name": "p5_integration",
+                            "pane_id": "w1:p5",
+                            "session_id": "session-5",
+                            "input_identity": {"candidate_commit": "pending"},
+                            "owned_scope": [],
+                        },
+                        {
+                            "lane_id": "independent_review",
+                            "generation": 1,
+                            "role": "integration-reviewer",
+                            "agent_name": "p6_review",
+                            "pane_id": "w1:p6",
+                            "session_id": "session-6",
+                            "input_identity": {"candidate_commit": "pending"},
+                            "owned_scope": [],
                         }
                     ],
                 }
@@ -94,8 +115,8 @@ class CreateControlStateTests(unittest.TestCase):
         roles = (
             "implementation",
             "implementation",
-            "integration",
-            "integration-reviewer",
+            "functional-qc",
+            "persona-qc",
         )
         for index, role in enumerate(roles, start=2):
             lane = dict(value["lanes"][0])
@@ -117,6 +138,47 @@ class CreateControlStateTests(unittest.TestCase):
         created = create_state(self.manifest, self.state)
 
         self.assertEqual(created["run"]["mode"], "Compact")
+
+    def test_rejects_missing_p5_or_p6_lane_for_both_modes(self):
+        manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
+        required_roles = {
+            "integration": "P5 integration",
+            "integration-reviewer": "P6 independent-review",
+        }
+        for mode in ("Compact", "Standard"):
+            for role, label in required_roles.items():
+                with self.subTest(mode=mode, role=role):
+                    value = copy.deepcopy(manifest)
+                    value["mode"] = mode
+                    if mode == "Standard":
+                        value["risk"]["high_assurance"] = True
+                    value["lanes"] = [
+                        lane for lane in value["lanes"] if lane["role"] != role
+                    ]
+                    self.manifest.write_text(json.dumps(value), encoding="utf-8")
+                    state = self.root / f"run-{mode}-{role}" / "control-state.json"
+
+                    with self.assertRaisesRegex(StateCreationError, label):
+                        create_state(self.manifest, state)
+
+                    self.assertFalse(state.parent.exists())
+
+    def test_rejects_duplicate_mandatory_roles_before_creating_directories(self):
+        manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
+        for role in ("integration", "integration-reviewer"):
+            with self.subTest(role=role):
+                value = copy.deepcopy(manifest)
+                lane = next(item for item in value["lanes"] if item["role"] == role)
+                duplicate = dict(lane)
+                duplicate["lane_id"] = f"duplicate-{role}"
+                value["lanes"].append(duplicate)
+                self.manifest.write_text(json.dumps(value), encoding="utf-8")
+                state = self.root / f"run-duplicate-{role}" / "control-state.json"
+
+                with self.assertRaisesRegex(StateCreationError, "exactly one"):
+                    create_state(self.manifest, state)
+
+                self.assertFalse(state.parent.exists())
 
     def test_rejects_missing_mode_contract_fields_before_creating_directories(self):
         manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
