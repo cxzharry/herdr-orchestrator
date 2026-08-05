@@ -1,0 +1,172 @@
+{
+  "schema_version": "herdr-performance-candidate/v1",
+  "candidate_sha": "46d40113bf3fef99d099624eb5d3cc9e5d3730ab",
+  "integration_sha": "46d40113bf3fef99d099624eb5d3cc9e5d3730ab",
+  "candidate_tree": "be5358ba21edaf898f9c01cb5988976c0d0f5705",
+  "previous_candidate_sha": "688c7a3d6b95b46a4870e9154c047e7bc8a86ecf",
+  "baseline_sha256": "35cd49358231e12d435be11d1b1200472ba27a76784530346a9bf743994cf12b",
+  "named_herdr_session": "wK-p7-functional-performance-g2",
+  "run_root": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2",
+  "raw_receipt": {
+    "path": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2/performance/performance_candidate_g2.json",
+    "sha256": "c2a0635b76809e8e548cc8372ee1b774a6878fee0ed1fc0666fea275dcee386f"
+  },
+  "setup": {
+    "path": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2/performance/setup.json",
+    "sha256": "951e5d40b0f67e34ff89ce34bf6916de28180ecfa7e1f29d327295e4be404566",
+    "baselines": {"compact_seconds": 152, "multi_module_seconds": 1009},
+    "prior_herdr": {"compact_seconds": 143, "multi_module_seconds": 776}
+  },
+  "candidate_skill": {
+    "source_sha": "46d40113bf3fef99d099624eb5d3cc9e5d3730ab",
+    "source_tree": "be5358ba21edaf898f9c01cb5988976c0d0f5705"
+  },
+  "single_function": {
+    "scenario_id": "single-function-compact-v1",
+    "manifest_sha256": "cf2f257741bf996d0549ca1db555b4a391f501b21c21f2a48acbb0d83ab608a6",
+    "fixture_git_blob": "a23f1d62e862d27a41efc419c982e14a4dc3a6b3",
+    "fixture_sha256": "6d83327a4ba5174b02fced23ee52167793cd446ee6f0653dbe334ad7e135298c",
+    "cold": {
+      "elapsed_seconds_raw": 186.904799,
+      "p1_submit_utc": "2026-08-05T10:15:29.095201Z",
+      "route_dispatch_utc": "2026-08-05T10:15:57.232770Z",
+      "implementation_receipt_utc": "2026-08-05T10:17:02Z",
+      "integration_receipt_utc": "2026-08-05T10:17:56Z",
+      "p6_receipt_utc": "2026-08-05T10:18:36Z",
+      "implementation_commit": "4faac53d112b77e790533e380289f88f42458f67",
+      "integrated_commit": "d43efd89e5fe205007a3bc45037d6e4761e60142",
+      "acceptance_exit_code": 0,
+      "scope_clean": true,
+      "rework_loops": 0
+    },
+    "warm": {
+      "elapsed_seconds_raw": 120.101693,
+      "p1_submit_utc": "2026-08-05T10:19:32.898307Z",
+      "route_dispatch_utc": "2026-08-05T10:19:46.920378Z",
+      "implementation_receipt_utc": "2026-08-05T10:20:26Z",
+      "integration_receipt_utc": "2026-08-05T10:21:01Z",
+      "p6_receipt_utc": "2026-08-05T10:21:33Z",
+      "implementation_commit": "2a541169218888c664b1d2c4a2776f2316b37534",
+      "integrated_commit": "1cb19fff184a3c82050c2d53300a35dd2a0d5b0e",
+      "acceptance_exit_code": 0,
+      "scope_clean": true,
+      "rework_loops": 0,
+      "reused_same_workspace_agents": true
+    },
+    "raw_evidence": [{
+      "path": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2/performance/single_function.json",
+      "sha256": "0601e2e98c92b40ccef9e00f0fe17ee5969547f74b2f357b12c969b978da570f"
+    }]
+  },
+  "scenarios": {
+    "compact": {
+      "scenario_id": "compact-control-plane-v1",
+      "manifest_sha256": "03ac319ef4b73602fda26c4a7cb02bc46eacfb61d002305b38cdad396c3c7708",
+      "seconds": 219,
+      "verified": true,
+      "scope_clean": true,
+      "scenario_identity": {
+        "base_sha": "9f5ece92b836d240a95463949e503b0dab366631",
+        "acceptance_command": ["python3", "verify.py"]
+      },
+      "rework_loops": 1,
+      "quality": {
+        "status": "FINDING",
+        "baseline_ceiling_seconds": 152,
+        "strict_gate": {
+          "acceptance_exit_zero": true,
+          "scope_clean": true,
+          "elapsed_integer_lt_baseline_ceiling": false
+        }
+      },
+      "timing": {
+        "start_utc": "2026-08-05T10:23:36.987878Z",
+        "route_dispatch_utc": "2026-08-05T10:24:00.900543Z",
+        "implementation_receipts_utc": ["2026-08-05T10:24:53Z", "2026-08-05T10:25:29Z", "2026-08-05T10:25:37Z"],
+        "integration_receipt_utc": "2026-08-05T10:26:48Z",
+        "stop_utc": "2026-08-05T10:27:16Z",
+        "elapsed_seconds_raw": 219.012122,
+        "elapsed_seconds": 219
+      },
+      "acceptance": {"command": ["python3", "verify.py"], "exit_code": 0, "output": "fixture verified"},
+      "integrated_commit": "3a85765cf9a3a6fea94309d687ec2b8375397946",
+      "comparison": {"frozen_seconds": 152, "prior_herdr_seconds": 143, "delta_from_frozen_seconds": 67, "delta_from_prior_herdr_seconds": 76},
+      "rework": ["Lane C reran a read-only evidence wrapper after using zsh reserved variable status; candidate bytes were unchanged."],
+      "raw_evidence": [{
+        "path": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2/performance/compact_benchmark.json",
+        "sha256": "7b746200d283f8baca11e34c604a9103d8915c9210eab7bf51cc411ca5dd4df3",
+        "schema_version": "herdr-compact-benchmark/v1"
+      }]
+    },
+    "multi_module": {
+      "scenario_id": "multi-module-canary-v1",
+      "manifest_sha256": "b99fbff1245032692635c9ebae96902a342d33f3052e3828ff380d001f4c587c",
+      "seconds": 765,
+      "verified": true,
+      "scope_clean": true,
+      "deep_immutability": true,
+      "scenario_identity": {
+        "base_sha": "405cf96fd675c607768dafec8ede1aeae5725359",
+        "acceptance_command": ["python3", "-B", "benchmarks/harness/acceptance_canary.py", "--root", "{candidate_root}"],
+        "deep_immutability_command": ["python3", "-B", "-m", "unittest", "tests.test_canary_integration.CanaryIntegrationTests.test_policy_constructor_deep_freezes_nested_inputs", "-v"]
+      },
+      "rework_loops": 3,
+      "quality": {
+        "status": "PASS",
+        "baseline_ceiling_seconds": 1009,
+        "manifest_digest": "80810193c597016c1085d6d32bcea4e2d666443f088d7ca415cc3c1e0d329133",
+        "strict_gate": {
+          "deep_immutability_exit_zero": true,
+          "deployment_verification_exit_zero": true,
+          "elapsed_integer_lt_baseline_ceiling": true,
+          "integration_unmodified": true,
+          "shared_acceptance_exit_zero": true,
+          "standard_evidence": true
+        }
+      },
+      "timing": {
+        "start_utc": "2026-08-05T10:29:37.559065Z",
+        "route_dispatch_utc": "2026-08-05T10:30:12.671269Z",
+        "implementation_receipts_utc": {"P2g1": "2026-08-05T10:32:22Z", "P3g2": "2026-08-05T10:32:59Z", "P4g1": "2026-08-05T10:32:53Z"},
+        "integration_receipt_utc": "2026-08-05T10:38:38Z",
+        "stop_utc": "2026-08-05T10:42:23Z",
+        "elapsed_seconds_raw": 765.440935,
+        "elapsed_seconds": 765
+      },
+      "acceptance": {
+        "command": ["python3", "-B", "benchmarks/harness/acceptance_canary.py", "--root", "{candidate_root}"],
+        "exit_code": 0,
+        "manifest_digest": "80810193c597016c1085d6d32bcea4e2d666443f088d7ca415cc3c1e0d329133",
+        "quality_generation": 2,
+        "release_id": "canary-2026-07-28",
+        "status": "pass"
+      },
+      "deep_immutability_result": {
+        "command": ["python3", "-B", "-m", "unittest", "tests.test_canary_integration.CanaryIntegrationTests.test_policy_constructor_deep_freezes_nested_inputs", "-v"],
+        "exit_code": 0,
+        "output_contains": "OK"
+      },
+      "deployment": {"exit_code": 0, "manifest_digest": "80810193c597016c1085d6d32bcea4e2d666443f088d7ca415cc3c1e0d329133", "source_identity": "integration-source", "status": "deployed"},
+      "final_qc": {"result": "P6 PASS", "receipt_utc": "2026-08-05T10:42:23Z", "exit_codes": [0, 0, 0, 0]},
+      "integrated_commit": "3b0060a7bc554f4f0e1b1ba078539e604c3b4206",
+      "comparison": {"frozen_seconds": 1009, "prior_herdr_seconds": 776, "delta_from_frozen_seconds": -244, "delta_from_prior_herdr_seconds": -11},
+      "rework": [
+        "P5 waited for an unrequested internal review; the router redirected P5 to finish with its authorized checks and P5 reran the final gate set without candidate mutation.",
+        "P6 first review made one read-only discovery outside multi-final/integration; the immutable candidate was reviewed again strictly in scope.",
+        "The strict P6 review retried its generation-identity check using patch identity after direct-ancestor assertions failed for cherry-picked commits."
+      ],
+      "raw_evidence": [{
+        "path": "/Users/haido/herdr-orchestrator-benchmark-runs/fast-path-46d4011-g2/performance/multi_benchmark.json",
+        "sha256": "9f20297c884347d4bbef388973980f58d9e84d266625923977a47c341683020e",
+        "schema_version": "herdr-multi-benchmark/v1"
+      }]
+    }
+  },
+  "overall_status": "FINDING",
+  "finding": {
+    "owner": "P3",
+    "summary": "Final Compact measured 219s and failed the strict <152s gate despite acceptance and clean scope.",
+    "action": "Make the Compact router enforce task-first worker prompts and bounded receipt handoffs without worker skill or memory discovery, then rerun this locked scenario on a new candidate."
+  },
+  "comparison_scope": "These measurements apply only to the exact candidate, scenario fixtures, wK test agents, and timestamps recorded here; they are not universal performance claims."
+}
