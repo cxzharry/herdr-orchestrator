@@ -148,6 +148,32 @@ class ControllerTickTests(unittest.TestCase):
             [("DISPATCH", "P2"), ("DISPATCH", "P3"), ("PREWARM", "P5"), ("PREWARM", "P6")],
             [(item["kind"], item["slot"]) for item in result["actions"]],
         )
+        for action in result["actions"]:
+            self.assertNotIn("prompt_profile", action)
+
+    def test_compact_dispatch_and_prewarm_use_task_first_prompt_profile(self):
+        state = state_with_free_slots("P2", "P5", "P6")
+        state["run"] = {"mode": "Compact", "status": "ACTIVE"}
+
+        result = controller_tick(
+            state,
+            requests=[request("a", ["a/**"])],
+            events=[],
+            live_agents=[],
+            now=10,
+        )
+
+        self.assertEqual(
+            [
+                ("DISPATCH", "P2", "compact-task-first-v1"),
+                ("PREWARM", "P5", "compact-task-first-v1"),
+                ("PREWARM", "P6", "compact-task-first-v1"),
+            ],
+            [
+                (item["kind"], item["slot"], item.get("prompt_profile"))
+                for item in result["actions"]
+            ],
+        )
 
     def test_first_active_implementation_tick_prewarms_p5_p6_for_both_modes(self):
         for mode in ("Compact", "Standard"):

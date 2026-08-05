@@ -60,6 +60,15 @@ read only state, pool, receipt, and deterministic verifier detail:
 - `scripts/verify_assets.py`
 - `scripts/verify_complexity.py`
 
+Compact actions use prompt profile `compact-task-first-v1`. Worker briefs must
+start with the owned task and acceptance. After required event skills are read
+once, no generic memory, repository, or skill discovery is allowed; execute the
+owned task immediately.
+
+P5/P6 prewarm must finish required discovery before handoff. Candidate handoffs
+contain only exact candidate identity, allowed paths, and exact commands; execute
+the handoff immediately.
+
 Standard-only recovery matrices and P7-P9 gates live outside the Compact path.
 Standard starts applicable P7, P8, and P9 lanes concurrently against one
 immutable candidate.

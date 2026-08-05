@@ -85,6 +85,19 @@ class P1BoundaryTests(unittest.TestCase):
             self.assertIn(marker, self.corpus)
         self.assertNotIn("disjoint P2-P4 paths", self.corpus)
 
+    def test_compact_prompts_and_handoffs_are_task_first_and_bounded(self):
+        routing = self.references["routing.md"]
+        self.assertIn("compact-task-first-v1", self.skill)
+        for marker in [
+            "start with the owned task and acceptance",
+            "required event skills are read once",
+            "no generic memory, repository, or skill discovery",
+            "P5/P6 prewarm must finish required discovery before handoff",
+            "only exact candidate identity, allowed paths, and exact commands",
+            "execute the handoff immediately",
+        ]:
+            self.assertIn(marker, routing)
+
     def test_asset_validator_requires_current_delivery_contract(self):
         required = " ".join(REQUIRED_TEXT)
         for marker in [

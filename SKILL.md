@@ -28,7 +28,8 @@ After contract validation, P1 must dispatch independent briefs concurrently
 with no planning prose. Compact and Standard prewarm P5/P6 while P2-P4 work. Redirect at
 60s without observable progress; reassign at 120s without resetting the timer.
 Review completed lane diffs while siblings run. Prevent duplicate writes during
-reassignment.
+reassignment. Compact DISPATCH and PREWARM actions use
+`compact-task-first-v1`; follow the bounded routing handoff contract.
 
 Compact applies only to approved low-risk work with one to three path-owned lanes,
 deterministic checks, and no browser/auth/schema/security/deploy scope. A single

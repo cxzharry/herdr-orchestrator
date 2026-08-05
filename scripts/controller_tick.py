@@ -21,6 +21,7 @@ SUCCESSFUL_LANE_STATES = {"ACCEPTED", "PASS"}
 DISPATCH_SLOTS = ("P2", "P3", "P4")
 PREWARM_SLOTS = ("P5", "P6")
 QC_SLOTS = ("P7", "P8", "P9")
+COMPACT_PROMPT_PROFILE = "compact-task-first-v1"
 REDIRECT_AFTER_SECONDS = 60
 REASSIGN_AFTER_SECONDS = 120
 
@@ -111,14 +112,15 @@ def _emit_ready_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
         request["state"] = "DISPATCHED"
         state["slots"][slot]["status"] = "BUSY"
         state["slots"][slot]["task_summary"] = request.get("summary") or request_id
-        actions.append(
-            {
-                "kind": "DISPATCH",
-                "slot": slot,
-                "request_id": request_id,
-                "agent_name": state["slots"][slot].get("role_name"),
-            }
-        )
+        action = {
+            "kind": "DISPATCH",
+            "slot": slot,
+            "request_id": request_id,
+            "agent_name": state["slots"][slot].get("role_name"),
+        }
+        if state.get("run", {}).get("mode") == "Compact":
+            action["prompt_profile"] = COMPACT_PROMPT_PROFILE
+        actions.append(action)
     return actions
 
 
@@ -137,7 +139,10 @@ def _emit_overlap_actions(state: dict[str, Any]) -> list[dict[str, Any]]:
             value = state.get("slots", {}).get(slot, {})
             if value.get("status") in PREWARM_SLOT_STATES:
                 value["status"] = "WARMING"
-                actions.append({"kind": "PREWARM", "slot": slot})
+                action = {"kind": "PREWARM", "slot": slot}
+                if mode == "Compact":
+                    action["prompt_profile"] = COMPACT_PROMPT_PROFILE
+                actions.append(action)
     actions.extend(_emit_ready_qc_actions(state))
     return actions
 
