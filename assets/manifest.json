@@ -9,7 +9,7 @@
     "delivery-flow.png": "9d011157f67984aa49793ef0c95ec32ac2dbf0d07cfb61e9a364aabe0e1e8c48"
   },
   "renderer": {
-    "chrome": "Google Chrome 150.0.7871.187",
+    "chrome": "Google Chrome 151.0.7922.75",
     "pillow": "9.2.0",
     "source_size": [3000, 1113],
     "output_size": [3000, 1113]
