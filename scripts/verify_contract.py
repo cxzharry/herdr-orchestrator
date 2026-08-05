@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -113,8 +114,7 @@ def verify() -> dict:
             failures.append("single-function scenario must use Compact")
         if scenario.get("mutate_baseline") is not False:
             failures.append("single-function scenario must not mutate baseline")
-        if not scenario.get("fixture", {}).get("sha256"):
-            failures.append("single-function scenario must lock fixture sha256")
+        _verify_single_function_fixture(scenario, failures)
         if not scenario.get("timing", {}).get("start") or not scenario.get(
             "timing", {}
         ).get("stop"):
@@ -134,6 +134,62 @@ def _read(path: Path) -> str:
 
 def _normalize(text: str) -> str:
     return " ".join(text.split())
+
+
+def _verify_single_function_fixture(scenario: dict, failures: list[str]) -> None:
+    fixture = scenario.get("fixture")
+    if not isinstance(fixture, dict):
+        failures.append("single-function scenario must define fixture")
+        return
+
+    if fixture.get("base_kind") != "candidate-relative-git-blob":
+        failures.append(
+            "single-function fixture base_kind must be candidate-relative-git-blob"
+        )
+    if not fixture.get("base_sha"):
+        failures.append("single-function fixture must define base_sha")
+    if not fixture.get("sha256"):
+        failures.append("single-function scenario must lock fixture sha256")
+
+    source_relative = fixture.get("source_path")
+    source = _candidate_relative_path(source_relative)
+    if source is None:
+        failures.append("single-function fixture must define candidate-relative source_path")
+        return
+    if not source.is_file():
+        failures.append(f"missing single-function fixture source: {source_relative}")
+        return
+
+    content = source.read_bytes()
+    source_sha256 = hashlib.sha256(content).hexdigest()
+    if fixture.get("sha256") != source_sha256:
+        failures.append("single-function fixture sha256 mismatch")
+    blob = b"blob " + str(len(content)).encode("ascii") + b"\0" + content
+    if fixture.get("base_sha") != hashlib.sha1(blob).hexdigest():
+        failures.append("single-function fixture base_sha mismatch")
+
+    files = fixture.get("files")
+    if not isinstance(files, list) or not files:
+        failures.append("single-function fixture must define materialized files")
+        return
+    for item in files:
+        target = item.get("path") if isinstance(item, dict) else None
+        if not target:
+            failures.append("single-function fixture file must define path")
+            continue
+        if item.get("source_path") != source_relative:
+            failures.append(f"single-function fixture source mismatch: {target}")
+        if item.get("sha256") != source_sha256:
+            failures.append(f"single-function fixture digest mismatch: {target}")
+
+
+def _candidate_relative_path(relative: object) -> Path | None:
+    if not isinstance(relative, str) or not relative:
+        return None
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return ROOT / path
 
 
 def main() -> int:

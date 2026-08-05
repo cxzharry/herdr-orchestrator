@@ -5,26 +5,30 @@
   "mode": "Compact",
   "fixture": {
     "definition": "public-helper-v1",
-    "base_sha": "112352852569fb848d1f92d4022f463c62cda496",
-    "sha256": "77cf11f4c5c29ba0317b84ec55c836d2672870e0eeee756c180b52dd7015beac",
+    "base_kind": "candidate-relative-git-blob",
+    "base_sha": "a23f1d62e862d27a41efc419c982e14a4dc3a6b3",
+    "source_path": "benchmarks/fixtures/single-function-compact-v1/public_helper.py",
+    "sha256": "6d83327a4ba5174b02fced23ee52167793cd446ee6f0653dbe334ad7e135298c",
     "files": [
       {
         "path": "public_helper.py",
-        "sha256": "c9fbf1b0f4fe54633a306c1e029cb3f200f3345680734ca5b03c44276243ba4f"
+        "source_path": "benchmarks/fixtures/single-function-compact-v1/public_helper.py",
+        "sha256": "6d83327a4ba5174b02fced23ee52167793cd446ee6f0653dbe334ad7e135298c"
       },
       {
         "path": "verify.py",
-        "sha256": "18c3dc16f336a3b6d1ad5e9a4608454a6cf5bfee49e0851c5c9fbf35572bacd2"
+        "source_path": "benchmarks/fixtures/single-function-compact-v1/public_helper.py",
+        "sha256": "6d83327a4ba5174b02fced23ee52167793cd446ee6f0653dbe334ad7e135298c"
       }
     ]
   },
   "isolation_copy_procedure": [
-    "materialize the locked fixture in a new isolated worktree",
-    "verify fixture and file digests before dispatch",
-    "run cold and warm candidates from separate clean copies at the same base"
+    "copy each fixture file from its candidate-relative source_path to path in a new isolated directory",
+    "verify the fixture SHA-256 and Git-blob base identity before dispatch",
+    "run cold and warm candidates from separate clean copies of the same fixture"
   ],
   "task_input": {
-    "summary": "Implement public_helper so it deterministically returns the square of an integer.",
+    "summary": "Implement square in public_helper.py so it deterministically returns the square of an integer.",
     "owned_paths": [
       "public_helper.py"
     ],

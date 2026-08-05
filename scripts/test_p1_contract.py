@@ -1,8 +1,12 @@
+import hashlib
 import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from scripts import verify_contract
 from scripts.verify_assets import REQUIRED_TEXT
 
 
@@ -117,6 +121,84 @@ class P1BoundaryTests(unittest.TestCase):
             self.assertNotIn(obsolete, self.asset_text)
 
         self.assertNotIn("foreign workspace adopted", self.asset_text)
+
+    def test_single_function_fixture_is_candidate_relative_and_digest_locked(self):
+        scenario = json.loads(
+            (ROOT / "benchmarks/scenarios/single-function-compact-v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        fixture = scenario["fixture"]
+        self.assertEqual("candidate-relative-git-blob", fixture.get("base_kind"))
+        source_path = fixture.get("source_path")
+        self.assertIsInstance(source_path, str)
+        source = ROOT / source_path
+        self.assertTrue(source.is_file(), source)
+        content = source.read_bytes()
+        self.assertEqual(hashlib.sha256(content).hexdigest(), fixture.get("sha256"))
+        blob = b"blob " + str(len(content)).encode("ascii") + b"\0" + content
+        self.assertEqual(hashlib.sha1(blob).hexdigest(), fixture.get("base_sha"))
+        self.assertEqual(
+            {"public_helper.py", "verify.py"},
+            {item["path"] for item in fixture.get("files", [])},
+        )
+        for item in fixture["files"]:
+            self.assertEqual(source_path, item.get("source_path"))
+            self.assertEqual(fixture["sha256"], item.get("sha256"))
+
+    def test_contract_verifier_rejects_missing_single_function_fixture_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_probe_scenario(root)
+            with patch.object(verify_contract, "ROOT", root):
+                failures = verify_contract.verify()["failures"]
+
+        self.assertIn(
+            "missing single-function fixture source: "
+            "benchmarks/fixtures/single-function-compact-v1/public_helper.py",
+            failures,
+        )
+
+    def test_contract_verifier_rejects_fixture_digest_and_base_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_probe_scenario(root)
+            source = (
+                root
+                / "benchmarks/fixtures/single-function-compact-v1/public_helper.py"
+            )
+            source.parent.mkdir(parents=True)
+            source.write_text("drift\n", encoding="utf-8")
+            with patch.object(verify_contract, "ROOT", root):
+                failures = verify_contract.verify()["failures"]
+
+        self.assertIn("single-function fixture sha256 mismatch", failures)
+        self.assertIn("single-function fixture base_sha mismatch", failures)
+
+    @staticmethod
+    def _write_probe_scenario(root: Path) -> None:
+        scenario = root / "benchmarks/scenarios/single-function-compact-v1.json"
+        scenario.parent.mkdir(parents=True)
+        scenario.write_text(
+            json.dumps(
+                {
+                    "mode": "Compact",
+                    "mutate_baseline": False,
+                    "fixture": {
+                        "base_kind": "candidate-relative-git-blob",
+                        "base_sha": "0" * 40,
+                        "source_path": (
+                            "benchmarks/fixtures/single-function-compact-v1/"
+                            "public_helper.py"
+                        ),
+                        "sha256": "0" * 64,
+                        "files": [],
+                    },
+                    "timing": {"start": "start", "stop": "stop"},
+                }
+            ),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":
