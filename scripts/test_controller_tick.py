@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 from scripts.controller_tick import controller_tick
@@ -77,6 +78,24 @@ def standard_state_ready_for_qc(applicability):
         "functional_qc": ready_qc_lane("functional_qc", "P7"),
         "design_qc": ready_qc_lane("design_qc", "P8"),
         "persona_qc": ready_qc_lane("persona_qc", "P9"),
+    }
+    return state
+
+
+def terminal_state(mode):
+    state = state_with_free_slots()
+    state["run"] = {"mode": mode, "status": "ACTIVE"}
+    state["lanes"] = {
+        "implementation": {"state": "ACCEPTED"},
+        "integration": {
+            "state": "PASS",
+            "output_artifact": {"commit": "candidate-abc"},
+        },
+        "independent_review": {
+            "state": "PASS",
+            "input_identity": {"candidate_commit": "candidate-abc"},
+            "output_artifact": {"commit": "candidate-abc"},
+        },
     }
     return state
 
@@ -363,19 +382,66 @@ class ControllerTickTests(unittest.TestCase):
         self.assertTrue(result["may_yield"])
         self.assertFalse(result["assistant_may_finalize"])
 
-    def test_terminal_delivery_may_finalize(self):
-        state = state_with_free_slots()
-        state["run"] = {"status": "ACTIVE"}
-        state["lanes"] = {
-            "a": {"state": "ACCEPTED"},
-            "b": {"state": "BLOCKED"},
-        }
+    def test_terminal_delivery_may_finalize_with_candidate_bound_p5_p6_pass(self):
+        for mode in ("Compact", "Standard"):
+            with self.subTest(mode=mode):
+                result = controller_tick(
+                    terminal_state(mode),
+                    requests=[],
+                    events=[],
+                    live_agents=[],
+                    now=100,
+                )
 
-        result = controller_tick(
-            state, requests=[], events=[], live_agents=[], now=100
+                self.assertTrue(result["assistant_may_finalize"])
+
+    def test_terminal_delivery_rejects_missing_failed_stale_or_mismatched_p5_p6(self):
+        variants = (
+            "missing_integration",
+            "missing_review",
+            "failed_integration",
+            "failed_review",
+            "stale_integration",
+            "stale_review",
+            "mismatched_review_output",
         )
+        for mode in ("Compact", "Standard"):
+            for variant in variants:
+                with self.subTest(mode=mode, variant=variant):
+                    state = terminal_state(mode)
+                    if variant == "missing_integration":
+                        state["lanes"].pop("integration")
+                    elif variant == "missing_review":
+                        state["lanes"].pop("independent_review")
+                    elif variant == "failed_integration":
+                        state["lanes"]["integration"]["state"] = "FINDING"
+                    elif variant == "failed_review":
+                        state["lanes"]["independent_review"]["state"] = "FINDING"
+                    elif variant == "stale_integration":
+                        state["lanes"]["integration"]["output_artifact"]["commit"] = (
+                            "candidate-old"
+                        )
+                    elif variant == "stale_review":
+                        review = state["lanes"]["independent_review"]
+                        review["input_identity"]["candidate_commit"] = "candidate-old"
+                        review["output_artifact"]["commit"] = "candidate-old"
+                    else:
+                        state["lanes"]["independent_review"]["output_artifact"][
+                            "commit"
+                        ] = "candidate-old"
+                    before = copy.deepcopy(state)
 
-        self.assertTrue(result["assistant_may_finalize"])
+                    result = controller_tick(
+                        state,
+                        requests=[],
+                        events=[],
+                        live_agents=[],
+                        now=100,
+                    )
+
+                    self.assertFalse(result["assistant_may_finalize"])
+                    self.assertEqual("MONITOR", result["actions"][0]["kind"])
+                    self.assertEqual(before, state)
 
 
 if __name__ == "__main__":

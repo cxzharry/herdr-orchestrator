@@ -17,6 +17,7 @@ FREE_SLOT_STATES = {"IDLE"}
 PREWARM_SLOT_STATES = {"COLD", "IDLE"}
 ACTIVE_SLOT_STATES = {"BUSY"}
 TERMINAL_LANE_STATES = {"ACCEPTED", "PASS", "FINDING", "BLOCKED", "LOST", "SUPERSEDED"}
+SUCCESSFUL_LANE_STATES = {"ACCEPTED", "PASS"}
 DISPATCH_SLOTS = ("P2", "P3", "P4")
 PREWARM_SLOTS = ("P5", "P6")
 QC_SLOTS = ("P7", "P8", "P9")
@@ -328,10 +329,26 @@ def _paths_overlap(left: list[str], right: list[str]) -> bool:
 def _delivery_terminal(state: dict[str, Any]) -> bool:
     lanes = state.get("lanes", {})
     if lanes:
-        return all(lane.get("state") in TERMINAL_LANE_STATES for lane in lanes.values())
+        return (
+            all(lane.get("state") in TERMINAL_LANE_STATES for lane in lanes.values())
+            and _mandatory_delivery_gates_pass(lanes)
+        )
     if state.get("run", {}).get("status") == "ACTIVE":
         return False
     return False
+
+
+def _mandatory_delivery_gates_pass(lanes: dict[str, Any]) -> bool:
+    integration = lanes.get("integration", {})
+    review = lanes.get("independent_review", {})
+    candidate = _candidate_commit(integration.get("output_artifact", {}))
+    return bool(
+        integration.get("state") in SUCCESSFUL_LANE_STATES
+        and review.get("state") in SUCCESSFUL_LANE_STATES
+        and candidate
+        and _candidate_commit(review.get("input_identity", {})) == candidate
+        and _candidate_commit(review.get("output_artifact", {})) == candidate
+    )
 
 
 def _watcher_wake_proven(state: dict[str, Any]) -> bool:
