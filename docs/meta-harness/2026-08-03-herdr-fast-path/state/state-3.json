@@ -1,0 +1,27 @@
+{
+  "schema_version": "meta-harness-state/v1",
+  "iteration": 3,
+  "phase": "success",
+  "prior_scores": {
+    "composite": 9.355,
+    "route_correctness": 9.4,
+    "live_latency": 9.2,
+    "stage_overlap": 9.5,
+    "cli_recovery_compatibility": 9.2,
+    "quality_compatibility": 9.5
+  },
+  "failure_class": null,
+  "targeted_criteria": [],
+  "hypothesis": "Confirmed: Compact task-first prompts and prewarmed exact handoffs remove repeated discovery while preserving all delivery contracts.",
+  "what_not_to_retry": [
+    "Do not generalize these timings beyond the exact candidates and locked scenarios.",
+    "Do not remove mandatory P5/P6 or candidate-bound receipts.",
+    "Do not replace the read-only frozen baseline."
+  ],
+  "evidence": {
+    "compact_seconds_raw": 115.328038,
+    "multi_module_seconds_raw": 517.73859,
+    "performance_receipt": "/Users/haido/.codex/herdr-runs/wK/herdr-fast-path-20260803/receipts/functional_performance_qc-g3.json",
+    "persona_receipt": "/Users/haido/.codex/herdr-runs/wK/herdr-fast-path-20260803/receipts/persona_fast_path_qc-g3.json"
+  }
+}

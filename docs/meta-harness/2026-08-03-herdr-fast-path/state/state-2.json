@@ -1,0 +1,31 @@
+{
+  "schema_version": "meta-harness-state/v1",
+  "iteration": 2,
+  "phase": "analyze",
+  "prior_scores": {
+    "composite": 8.495,
+    "route_correctness": 9.2,
+    "live_latency": 7.0,
+    "stage_overlap": 9.4,
+    "cli_recovery_compatibility": 9.1,
+    "quality_compatibility": 8.0
+  },
+  "failure_class": "implementation",
+  "targeted_criteria": [
+    "live_latency",
+    "quality_compatibility"
+  ],
+  "hypothesis": "A Compact-only task-first prompt profile plus completed P5/P6 prewarm will remove repeated discovery and bounded-handoff delay without changing Standard behavior.",
+  "what_not_to_retry": [
+    "Do not change Standard action dictionaries.",
+    "Do not weaken candidate identity, P5, P6, acceptance, or clean-scope gates.",
+    "Do not rerun cold or warm canaries; rerun each locked final scenario once on a new candidate.",
+    "Do not rerun or modify the frozen baseline."
+  ],
+  "evidence": {
+    "compact_seconds": 219,
+    "multi_module_seconds": 765,
+    "finding_receipt": "/Users/haido/.codex/herdr-runs/wK/herdr-fast-path-20260803/receipts/functional_performance_qc-g2.json",
+    "next_owner": "P3"
+  }
+}

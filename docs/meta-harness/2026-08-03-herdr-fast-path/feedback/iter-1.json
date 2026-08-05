@@ -1,0 +1,30 @@
+{
+  "schema_version": "meta-harness-feedback/v1",
+  "iteration": 1,
+  "candidate": "46d40113bf3fef99d099624eb5d3cc9e5d3730ab",
+  "composite": 8.05,
+  "passed": false,
+  "scores": {
+    "route_correctness": {
+      "score": 8.5,
+      "evidence": "Deterministic Compact or Standard classification, persisted mode, mandatory P5 and P6 lanes, and candidate-bound terminal checks pass focused contract tests."
+    },
+    "live_latency": {
+      "score": 7.2,
+      "evidence": "Reducer work remains sub-second and emits implementation plus P5/P6 prewarm together, but no final locked live timing had yet proved the latency target."
+    },
+    "stage_overlap": {
+      "score": 8.7,
+      "evidence": "Compact and Standard prewarm P5/P6 with implementation; Standard emits all applicable candidate-bound P7-P9 lanes in one wave."
+    },
+    "cli_recovery_compatibility": {
+      "score": 8.5,
+      "evidence": "The live CLI boundary uses current Herdr syntax, same-workspace pane identity, no-focus, --yolo, and no pane close or move."
+    },
+    "quality_compatibility": {
+      "score": 7.4,
+      "evidence": "Focused and full repository checks pass, while exact frozen-scenario live comparisons remained outstanding."
+    }
+  },
+  "finding": "Contract completeness and fixture identity still required live adversarial validation before performance could be accepted."
+}

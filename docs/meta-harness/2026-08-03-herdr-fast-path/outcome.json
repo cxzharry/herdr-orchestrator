@@ -1,0 +1,44 @@
+{
+  "schema_version": "meta-harness-outcome/v1",
+  "intent": "IMPROVE",
+  "orchestrator": "meta-harness",
+  "meta_harness_used": true,
+  "status": "SUCCESS",
+  "exit_code": "SUCCESS",
+  "best_iteration": 3,
+  "iterations": 3,
+  "total_iterations": 3,
+  "target": 8.5,
+  "target_min": 7.0,
+  "best_composite": 9.355,
+  "trajectory": [8.05, 8.495, 9.355],
+  "composite_trajectory": [
+    {"iter": 1, "composite": 8.05},
+    {"iter": 2, "composite": 8.495},
+    {"iter": 3, "composite": 9.355}
+  ],
+  "candidate": "1dcd2f2b539f10d53bdf26844cb5780d6305a2d5",
+  "evidence_commit": "b1331e8cef387ae7d7c62213adea2ce96059b66b",
+  "results": {
+    "compact_seconds_raw": 115.328038,
+    "compact_seconds": 115,
+    "compact_frozen_seconds": 152,
+    "compact_prior_herdr_seconds": 143,
+    "multi_module_seconds_raw": 517.73859,
+    "multi_module_seconds": 517,
+    "multi_module_frozen_seconds": 1009,
+    "multi_module_prior_herdr_seconds": 776
+  },
+  "quality": {
+    "integration": "PASS",
+    "independent_review": "PASS",
+    "functional_performance": "PASS",
+    "persona": "PASS",
+    "frozen_baseline_executed": false,
+    "frozen_baseline_modified": false
+  },
+  "trace": {
+    "status": "written",
+    "path": "/Users/haido/.claude/traces/runs/260805-herdr-fast-path.json"
+  }
+}

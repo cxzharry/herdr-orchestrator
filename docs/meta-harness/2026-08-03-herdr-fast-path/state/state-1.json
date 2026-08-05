@@ -1,0 +1,34 @@
+{
+  "schema_version": "meta-harness-state/v1",
+  "iteration": 1,
+  "phase": "analyze",
+  "prior_scores": {
+    "composite": 8.05,
+    "route_correctness": 8.5,
+    "live_latency": 7.2,
+    "stage_overlap": 8.7,
+    "cli_recovery_compatibility": 8.5,
+    "quality_compatibility": 7.4
+  },
+  "failure_class": "implementation",
+  "targeted_criteria": [
+    "route_correctness",
+    "quality_compatibility"
+  ],
+  "hypothesis": "Live adversarial review will expose candidate-binding, mandatory-gate, renderer, or fixture gaps that structural tests alone cannot prove.",
+  "what_not_to_retry": [
+    "Do not weaken P5 integration or P6 independent QC.",
+    "Do not change Compact eligibility to hide Standard risks.",
+    "Do not run or modify the frozen Superpowers baseline.",
+    "Do not close or move panes during recovery."
+  ],
+  "evidence": {
+    "implemented_contracts": [
+      "deterministic mode",
+      "P5/P6 prewarm",
+      "candidate-bound QC waves",
+      "current Herdr --yolo start boundary"
+    ],
+    "next_route": "Independent review and live canaries on one immutable candidate"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": "meta-harness-feedback/v1",
+  "iteration": 3,
+  "candidate": "1dcd2f2b539f10d53bdf26844cb5780d6305a2d5",
+  "composite": 9.355,
+  "passed": true,
+  "scores": {
+    "route_correctness": {
+      "score": 9.4,
+      "evidence": "Independent review and persona QC pass exact-candidate probes for deterministic mode, P1 responsiveness, mandatory P5/P6, candidate binding, and unchanged Standard actions."
+    },
+    "live_latency": {
+      "score": 9.2,
+      "evidence": "Final Compact passed in 115.328038s, 37s faster than frozen and 28s faster than the prior Herdr result; final multi-module passed in 517.738590s."
+    },
+    "stage_overlap": {
+      "score": 9.5,
+      "evidence": "P5/P6 completed prewarm before both timed handoffs, Compact implementation fanned out immediately, and Standard implementation lanes ran concurrently."
+    },
+    "cli_recovery_compatibility": {
+      "score": 9.2,
+      "evidence": "The exhausted test router recovered in the same wK workspace without resetting the timer, adding panes, or issuing pane close or move."
+    },
+    "quality_compatibility": {
+      "score": 9.5,
+      "evidence": "Compact and multi-module both pass strict frozen gates with clean scope, P5/P6, shared acceptance, deployment verification, and deep immutability where applicable."
+    }
+  },
+  "finding": null
+}

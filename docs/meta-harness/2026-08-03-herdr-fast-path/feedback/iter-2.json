@@ -1,0 +1,30 @@
+{
+  "schema_version": "meta-harness-feedback/v1",
+  "iteration": 2,
+  "candidate": "46d40113bf3fef99d099624eb5d3cc9e5d3730ab",
+  "composite": 8.495,
+  "passed": false,
+  "scores": {
+    "route_correctness": {
+      "score": 9.2,
+      "evidence": "P5/P6 terminal gates reject missing, failed, stale, and mismatched candidates; fixture and role manifests fail closed before writes."
+    },
+    "live_latency": {
+      "score": 7.0,
+      "evidence": "Cold and warm single-function canaries passed at 186.904799s and 120.101693s, but final Compact took 219.012122s and missed the strict 152s ceiling."
+    },
+    "stage_overlap": {
+      "score": 9.4,
+      "evidence": "P5/P6 prewarm and concurrent Standard QC were observed live; multi-module implementation lanes ran concurrently."
+    },
+    "cli_recovery_compatibility": {
+      "score": 9.1,
+      "evidence": "All live agents stayed in workspace wK, used --yolo when started, recovered without pane close or move, and left P1 responsive."
+    },
+    "quality_compatibility": {
+      "score": 8.0,
+      "evidence": "Multi-module passed all gates in 765s versus frozen 1009s, while Compact passed acceptance and scope but failed latency at 219s versus frozen 152s."
+    }
+  },
+  "finding": "Compact workers and P5/P6 repeated discovery and planning after handoff, adding 67 seconds beyond the frozen ceiling."
+}
